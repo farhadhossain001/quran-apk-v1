@@ -1,4 +1,4 @@
-
+import { Capacitor } from '@capacitor/core';
 import { Surah, Ayah, HadithBook, HadithChapter, Hadith, TranslationResource, Reciter, NameOfAllah, TafsirResource, Tafsir, RadioStation, RadioApiResponse } from '../types';
 import { asmaData } from '../utils/asmaData';
 
@@ -155,10 +155,14 @@ export const searchVerses = async (query: string, page = 1) => {
 // Prayer Times - Using Islamic API
 export const getPrayerTimes = async (lat: number, lng: number, dateObj?: Date) => {
   try {
-    // Build URL for the serverless function instead of the direct Islamic API to avoid CORS issues
-    // The serverless function will securely handle the API key
-    const baseUrl = window.location.origin;
-    const url = `${baseUrl}/api/prayer-time?lat=${lat}&lng=${lng}`;
+    let url = '';
+    if (Capacitor.isNativePlatform()) {
+      const ISLAMIC_API_KEY = '3Z7SzW1uBjvE2S0pJjmJtyHF9fYZ9ficVNL2k2p9fMxhZhlR';
+      url = `https://islamicapi.com/api/v1/prayer-time/?lat=${lat}&lon=${lng}&method=1&school=2&api_key=${ISLAMIC_API_KEY}`;
+    } else {
+      const baseUrl = window.location.origin;
+      url = `${baseUrl}/api/prayer-time?lat=${lat}&lng=${lng}`;
+    }
 
     const response = await fetch(url);
     if (!response.ok) throw new Error("Failed to fetch prayer times");
@@ -423,8 +427,14 @@ export const getHadiths = async (bookSlug: string, sectionNumber: string, transl
 export const getAsmaUlHusna = async (language: 'en' | 'bn'): Promise<NameOfAllah[]> => {
   // 1. First, try to fetch from the API as per user request
   try {
-    const baseUrl = window.location.origin;
-    const url = `${baseUrl}/api/asma-ul-husna?language=${language}`;
+    let url = '';
+    if (Capacitor.isNativePlatform()) {
+      const ISLAMIC_API_KEY = '3Z7SzW1uBjvE2S0pJjmJtyHF9fYZ9ficVNL2k2p9fMxhZhlR';
+      url = `https://islamicapi.com/api/v1/asma-ul-husna/?language=${language}&api_key=${ISLAMIC_API_KEY}`;
+    } else {
+      const baseUrl = window.location.origin;
+      url = `${baseUrl}/api/asma-ul-husna?language=${language}`;
+    }
 
     const response = await fetch(url);
 
