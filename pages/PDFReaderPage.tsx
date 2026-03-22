@@ -1,5 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
 import { useAppStore } from '../context/Store';
@@ -357,12 +358,14 @@ const PDFReaderPage = () => {
         const fetchPdf = async () => {
             console.log('Fetching PDF:', book.pdfUrl);
 
-            // Use internal serverless proxy to bypass CORS securely natively
+            // Use internal serverless proxy to bypass CORS securely on the web
             const baseUrl = window.location.origin;
-            const strategies = [
-                { name: 'Serverless Proxy', url: `${baseUrl}/api/pdf-proxy?url=${encodeURIComponent(book.pdfUrl)}` },
-                { name: 'Direct', url: book.pdfUrl }
-            ];
+            const strategies = Capacitor.isNativePlatform()
+                ? [ { name: 'Direct (Capacitor Native)', url: book.pdfUrl } ]
+                : [
+                    { name: 'Serverless Proxy', url: `${baseUrl}/api/pdf-proxy?url=${encodeURIComponent(book.pdfUrl)}` },
+                    { name: 'Direct', url: book.pdfUrl }
+                  ];
 
             for (const strategy of strategies) {
                 if (!active) return;
