@@ -1,10 +1,10 @@
 workflows:
   android-build:
     name: Android Build
-    max_build_duration: 300
+    max_build_duration: 60
     environment:
-      node: 22
-      java: 17   # ✅ ADD THIS LINE
+      node: 22   # ✅ FIXED
+      java: 17
     scripts:
       - name: Install dependencies
         script: |
