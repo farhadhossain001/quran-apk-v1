@@ -119,19 +119,15 @@
         overscroll-behavior-y: none;
       }
 
-      /* Custom Scrollbar for cleaner look */
+      /* Hide Scrollbars for Native App Feel */
       ::-webkit-scrollbar {
-        width: 8px;
+        display: none;
+        width: 0;
+        height: 0;
       }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #CBD5E1;
-        border-radius: 4px;
-      }
-      .dark ::-webkit-scrollbar-thumb {
-        background: #475569;
+      * {
+        -ms-overflow-style: none; /* IE and Edge */
+        scrollbar-width: none; /* Firefox */
       }
     </style>
   <script type="importmap">
