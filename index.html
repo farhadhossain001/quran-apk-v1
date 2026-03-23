@@ -172,29 +172,43 @@
   </div>
   <script>
     const offlineOverlay = document.getElementById('offline-overlay');
-    function updateOnlineStatus() {
-      if (!navigator.onLine) {
-        offlineOverlay.style.display = 'flex';
-        // Dark mode adaptation
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          offlineOverlay.style.background = '#121212';
-          document.getElementById('offline-title').style.color = '#F3F4F6';
-          document.getElementById('offline-text').style.color = '#9CA3AF';
-        }
-      } else {
-        offlineOverlay.style.display = 'none';
-        // Auto-reload the app if internet came back AND the app was fundamentally broken/empty
-        const rootContent = document.getElementById('root').innerHTML.trim();
-        if (!rootContent) {
-           setTimeout(() => window.location.reload(), 500);
-        }
+    function showOfflineScreen() {
+      offlineOverlay.style.display = 'flex';
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        offlineOverlay.style.background = '#121212';
+        document.getElementById('offline-title').style.color = '#F3F4F6';
+        document.getElementById('offline-text').style.color = '#9CA3AF';
       }
     }
+    
+    function hideOfflineScreen() {
+      offlineOverlay.style.display = 'none';
+      if (!document.getElementById('root').innerHTML.trim()) {
+         setTimeout(() => window.location.reload(), 500);
+      }
+    }
+
+    function updateOnlineStatus() {
+      if (!navigator.onLine) {
+        showOfflineScreen();
+      } else {
+        hideOfflineScreen();
+      }
+    }
+    
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
-    
-    // Check instantly on load
-    updateOnlineStatus();
+    updateOnlineStatus(); // Check instantly on load
+
+    // Fallback for Android WebView APKs: WebViews often report navigator.onLine as TRUE
+    // because Capacitor creates a local http://localhost server. 
+    // We check if the CDN scripts failed to render the app after 3.5 seconds.
+    setTimeout(() => {
+      const isAppBroken = !document.getElementById('root').innerHTML.trim();
+      if (isAppBroken) {
+        showOfflineScreen();
+      }
+    }, 3500);
   </script>
 
   <div id="root"></div>
