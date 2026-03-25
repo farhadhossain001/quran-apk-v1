@@ -1,2531 +1,1898 @@
-Islamhouse API v3
+Integrating Quran Font Rendering
 Overview
-IslamHouse API allows the developers to integrate IslamHouse.com data and features into their apps and websites, the API covers every aspect of IslamHouse.com original website.
+This guide explains how to integrate Quran text rendering in your application using the same fonts and techniques used on Quran.com. You'll learn how to:
 
-Structure
-IslamHouse is formed of items, each item has a single type (book, article, audio, video etc) and has a single source language slang (original language), and one or more flang interface language (represents item's localizations), each item may have one or more author and one or more source (publisher), also the item may have one or more category.
+Fetch verse data with the correct API parameters for font rendering
+Load and apply Quran fonts
+Render Arabic text with proper styling
+Handle different script types (Madani, IndoPak, Uthmani, Tajweed)
+TL;DR: Quick Decision Guide
+Choose your path based on your needs:
 
-The API provides endpoints for retrieving list of items (collections) with many filtration options (specific type, original language, author, category etc), endpoints for retrieving single item details, endpoints for retrieving list of authors, endpoints for retrieving single author details and other helper endpoints.
+                        ┌─────────────────────────────────┐
+                        │   What do you need?             │
+                        └─────────────────┬───────────────┘
+                                          │
+              ┌───────────────────────────┼───────────────────────────┐
+              │                           │                           │
+              ▼                           ▼                           ▼
+    ┌─────────────────┐       ┌─────────────────┐        ┌─────────────────┐
+    │  Quickest Setup │       │  Physical Mushaf│        │  Tajweed Colors │
+    │  (Simple apps)  │       │     Layout      │        │   (Learning)    │
+    └────────┬────────┘       └────────┬────────┘        └────────┬────────┘
+             │                         │                          │
+             ▼                         ▼                          ▼
+    ┌─────────────────┐       ┌─────────────────┐        ┌─────────────────┐
+    │  Use QPC Hafs   │       │   Use QCF V2    │        │   Use QCF V4    │
+    │   (Unicode)     │       │  (Glyph-based)  │        │   (Tajweed)     │
+    └─────────────────┘       └─────────────────┘        └─────────────────┘
 
-Endpoint base URL
-https://api3.islamhouse.com/v3
+If you want...	Use this font	API field
+Fastest implementation	QPC Hafs	text_qpc_hafs
+South Asian script	IndoPak	text_indopak
+Pixel-perfect Mushaf	QCF V2	code_v2 + page_number
+Tajweed color rules	QCF V4	code_v2 + page_number
+Quick Start
+Simplest Implementation (Unicode Font)
+If you want the quickest setup, use Unicode fonts (QPC Hafs). No page-based font loading required:
 
-Endpoint parameters
-key
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <style>
+    @font-face {
+      font-family: 'UthmanicHafs';
+      src: url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2') format('woff2'),
+           url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.ttf') format('truetype');
+      font-display: swap;
+    }
 
-Public API key used for calling all API requests.
-It's free to use paV29H2gm56kvLP
-lang | flang | slang
+    .quran-text {
+      font-family: 'UthmanicHafs', 'Traditional Arabic', serif;
+      font-size: 28px;
+      line-height: 2;
+      direction: rtl;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div class="quran-text" id="verse"></div>
 
-language iso_639_1 code.
-flang (interface language)
-slang (source language)
-note that slang may equals showall (showall = all languages)
-each IslamHouse item has one source language (original language) and can have one or more interface language (item localizations)
-type | item_type
+  <script>
+    // NOTE: In production, fetch token server-side and pass to client
+    // Never expose client_secret in browser code!
+    const API_BASE = 'https://apis.quran.foundation/content/api/v4';
+    const accessToken = 'YOUR_ACCESS_TOKEN'; // Get from your server
+    const clientId = 'YOUR_CLIENT_ID';
 
-describes item types
-examples: [showall, video, audio, book, ...].
-note that: type or item_type may equals showall (showall = All API types)
-kind
+    fetch(`${API_BASE}/verses/by_key/1:1?words=true&word_fields=text_uthmani,text_qpc_hafs`, {
+      headers: {
+        'x-auth-token': accessToken,
+        'x-client-id': clientId
+      }
+    })
+      .then(res => res.json())
+      .then(data => {
+        const text = data.verse.words.map(w => w.text_qpc_hafs).join(' ');
+        document.getElementById('verse').textContent = text;
+      });
+  </script>
+</body>
+</html>
 
-describe person (author) kind (writer, translator, reviewer etc)
-examples: [showall, source, publisher, author, translator, ...]
-note that kind may equals showall (showall = all kinds)
-id | categoryId | authorId
 
-Used for fetching certain item, category or author.
-integer number.
-sorttype
+⚠️ Security Note: The example above shows client-side code for simplicity. In production, always obtain access tokens on your server and proxy API requests to avoid exposing credentials.
 
-Represent sorting mode.
-examples: [countdesc, countasc, ...].
-period
+Understanding Font Types
+Font Categories
+Quran.com supports two categories of fonts:
 
-period for more specific filtration.
-examples: [all, year, month, week, day].
-pageNum
+Category	Description	Fonts	Pros	Cons
+QCF (Glyph-Based)	Special glyph codes mapped to custom fonts	V1, V2, V4 (Tajweed)	Pixel-perfect Mushaf rendering	Requires per-page font loading
+Unicode	Standard Arabic Unicode text	QPC Hafs, Uthmani, IndoPak	Simple to implement	Standard text rendering
+Available Fonts
+Font Name	API Field	Mushaf ID	Type	Best For
+QCF V1	code_v1	2	Glyph-based	Traditional Madani Mushaf look
+QCF V2	code_v2	1	Glyph-based	Modern Madani Mushaf (recommended)
+QCF V4 Tajweed	code_v2	19	Glyph-based	Colored Tajweed rules
+QPC Hafs	text_qpc_hafs	5	Unicode	Simple apps, fallback font
+Uthmani	text_uthmani	4	Unicode	Standard Uthmani script
+IndoPak	text_indopak	3, 6, 7	Unicode	South Asian users
+Choosing a Font
+Choose QCF V2 if:
 
-Pagination current page number.
-integer number.
-limit
+You want pixel-perfect Mushaf rendering
+You're building a dedicated Quran app
+You can handle dynamic font loading
+Choose QPC Hafs if:
 
-Count of retrieved items in response max is 50 record.
-integer number.
-format
+You want simple implementation
+You're embedding Quran verses in another app
+You need quick setup
+Choose Tajweed V4 if:
 
-format represent response outcome format.
-json format only supported.
-GET
-Statistics and site contents
-http://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/home/json
-Request:
+You want to display Tajweed color rules
+You can handle additional theme complexity
+API Parameters for Font Rendering
+This section covers the specific API parameters needed for font rendering. For complete API documentation including authentication, endpoints, and general usage, see the Quick Start Guide.
 
-Syntax: {endpoint}/{key}/main/home/{format}
+Essential Parameters
+Parameter	Description	Example
+words	Include word-level data	words=true
+word_fields	Which text fields to return	word_fields=code_v2,text_qpc_hafs,text_uthmani_simple
+mushaf	Mushaf layout/format ID	mushaf=1 (QCF V2)
+translations	Translation resource IDs to include	translations=131,95 (comma-separated)
+Word Fields for Font Rendering
+The key word fields needed for font rendering:
 
-https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/home/json
+Field	Description	Required For
+code_v1	QCF V1 glyph codes	V1 font rendering
+code_v2	QCF V2 glyph codes	V2 or V4 font rendering
+text_qpc_hafs	QPC Hafs Unicode text	Unicode font rendering
+text_indopak	IndoPak script text	IndoPak font rendering
+📚 Full field reference: Word-level Fields Documentation
 
-Describe the request
-Describes API home page.
-contains details about all languages.
-Describe the response:
-language statistics (The number of items).
-The list of all languages with their items and files count, plus social media links.
-RSS link for each language content.
-Torrent link if you prepare to download certain language content.
-Language code for each one.
-Site content link for each language.
-Example Request
-Statistics and site contents
-curl
-curl --location 'https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/home/json' \
---data ''
-200 OK
-Example Response
-Body
-Headers (14)
-View More
-json
+Understanding Character Types
+Each word in the API response has a char_type_name field indicating its type:
+
+Type	Description	Rendering Notes
+word	Regular Quranic word	Standard rendering
+end	Verse end marker (۝)	Always useUthmanicHafs font
+pause	Pause/stop mark	May skip rendering in some views
+sajdah	Prostration marker	Special styling may apply
+rub-el-hizb	Quarter Hizb marker	Special styling may apply
+⚠️ Important: For end markers, always use the Unicode font (UthmanicHafs), not QCF fonts, as the verse number glyphs render better with the Unicode font.
+
+API Request Examples
+For QCF V2 (Glyph-Based)
+curl -X GET "https://apis.quran.foundation/content/api/v4/verses/by_chapter/1?words=true&word_fields=code_v2,text_qpc_hafs&mushaf=1" \
+  -H "x-auth-token: YOUR_ACCESS_TOKEN" \
+  -H "x-client-id: YOUR_CLIENT_ID"
+
+
+For QPC Hafs (Unicode)
+curl -X GET "https://apis.quran.foundation/content/api/v4/verses/by_chapter/1?words=true&word_fields=text_qpc_hafs" \
+  -H "x-auth-token: YOUR_ACCESS_TOKEN" \
+  -H "x-client-id: YOUR_CLIENT_ID"
+
+
+For Tajweed V4
+curl -X GET "https://apis.quran.foundation/content/api/v4/verses/by_chapter/1?words=true&word_fields=code_v2,text_qpc_hafs&mushaf=19" \
+  -H "x-auth-token: YOUR_ACCESS_TOKEN" \
+  -H "x-client-id: YOUR_CLIENT_ID"
+
+
+API Response Structure
 {
-  "statistics": {
-    "total_languages_items": 70615,
-    "languages_count": 117,
-    "total_languages_files": 220889
-  },
-  "data": [
-    {
-      "id": 8,
-      "title": "العربية",
-      "add_date": 1513638872,
-      "total_items": 12238,
-      "total_files": 95608,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseAr",
-      "twitter": "https://twitter.com/IslamHouseAR",
-      "youtube": "https://islamhouse.info/wa-ar",
-      "instagram": "https://t.me/islamhouse",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-AR-AR.xml",
-      "torrent": "",
-      "language_code": "ar",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ar/ar/json"
-    },
-    {
-      "id": 1,
-      "title": "Afaraf",
-      "add_date": 1513638872,
-      "total_items": 1179,
-      "total_files": 2871,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-Qaf%C3%A1r-1507709509502379/",
-      "twitter": "https://twitter.com/islamhouseaa",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseAfar",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-AA-AA.xml",
-      "torrent": "",
-      "language_code": "aa",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/aa/aa/json"
-    },
-    {
-      "id": 4,
-      "title": "Afrikaans",
-      "add_date": 1513638872,
-      "total_items": 2,
-      "total_files": 2,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-أفريقاني-812640022184317",
-      "twitter": "https://twitter.com/islamhouseaf",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-AF-AF.xml",
-      "torrent": "",
-      "language_code": "af",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/af/af/json"
-    },
-    {
-      "id": 5,
-      "title": "Akan",
-      "add_date": 1513638872,
-      "total_items": 301,
-      "total_files": 660,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHousecom-Akan/301880153356231",
-      "twitter": "https://twitter.com/islamhouseak",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseAkane",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-AK-AK.xml",
-      "torrent": "",
-      "language_code": "ak",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ak/ak/json"
-    },
-    {
-      "id": 6,
-      "title": "አማርኛ",
-      "add_date": 1513638872,
-      "total_items": 1460,
-      "total_files": 4182,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseAM/",
-      "twitter": "https://twitter.com/IslamHouseAm",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseAmharic",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-AM-AM.xml",
-      "torrent": "",
-      "language_code": "am",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/am/am/json"
-    },
-    {
-      "id": 9,
-      "title": "অসমীয়া",
-      "add_date": 1513638872,
-      "total_items": 76,
-      "total_files": 144,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHousecom-Assamese/1597929250494130",
-      "twitter": "https://twitter.com/islamhouseas",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseAssamese",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-AS-AS.xml",
-      "torrent": "",
-      "language_code": "as",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/as/as/json"
-    },
-    {
-      "id": 10,
-      "title": "авар мацӀ",
-      "add_date": 1513638872,
-      "total_items": 5,
-      "total_files": 5,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-أواري-866355790120267/",
-      "twitter": "https://twitter.com/islamhouseav",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-AV-AV.xml",
-      "torrent": "",
-      "language_code": "av",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/av/av/json"
-    },
-    {
-      "id": 12,
-      "title": "azərbaycanca",
-      "add_date": 1513638872,
-      "total_items": 212,
-      "total_files": 286,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-azərbaycanca-Azerbaijani-أذري-1604282543194299",
-      "twitter": "https://twitter.com/IslamHouseAz",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseAzerbaijani",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-AZ-AZ.xml",
-      "torrent": "",
-      "language_code": "az",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/az/az/json"
-    },
-    {
-      "id": 13,
-      "title": "башҡорт теле",
-      "add_date": 1513638872,
-      "total_items": 39,
-      "total_files": 41,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-بلوشي-304554539715213/",
-      "twitter": "https://twitter.com/islamhouseba",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-BA-BA.xml",
-      "torrent": "",
-      "language_code": "ba",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ba/ba/json"
-    },
-    {
-      "id": 15,
-      "title": "български",
-      "add_date": 1513638872,
-      "total_items": 23,
-      "total_files": 44,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-Български-1613596612250474/",
-      "twitter": "https://twitter.com/islamhousebg",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseBulgarian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-BG-BG.xml",
-      "torrent": "",
-      "language_code": "bg",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/bg/bg/json"
-    },
-    {
-      "id": 17,
-      "title": "bamanankan",
-      "add_date": 1513638872,
-      "total_items": 329,
-      "total_files": 486,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseBamanan",
-      "twitter": "https://twitter.com/islamhousebm",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseBambara",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-BM-BM.xml",
-      "torrent": "",
-      "language_code": "bm",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/bm/bm/json"
-    },
-    {
-      "id": 18,
-      "title": "বাংলা",
-      "add_date": 1513638872,
-      "total_items": 1906,
-      "total_files": 3549,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Bengali.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseBn",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseBengali",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-BN-BN.xml",
-      "torrent": "",
-      "language_code": "bn",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/bn/bn/json"
-    },
-    {
-      "id": 21,
-      "title": "bosanski",
-      "add_date": 1513638872,
-      "total_items": 4479,
-      "total_files": 7045,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Bosnian.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseBs",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseBosnian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-BS-BS.xml",
-      "torrent": "",
-      "language_code": "bs",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/bs/bs/json"
-    },
-    {
-      "id": 23,
-      "title": "нохчийн мотт",
-      "add_date": 1513638872,
-      "total_items": 60,
-      "total_files": 348,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-شيشاني-114000685612748/",
-      "twitter": "https://twitter.com/islamhousece",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-CE-CE.xml",
-      "torrent": "",
-      "language_code": "ce",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ce/ce/json"
-    },
-    {
-      "id": 27,
-      "title": "čeština",
-      "add_date": 1513638872,
-      "total_items": 21,
-      "total_files": 42,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-Czech-502404903255696/",
-      "twitter": "https://twitter.com/islamhousecs",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseCzech",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-CS-CS.xml",
-      "torrent": "",
-      "language_code": "cs",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/cs/cs/json"
-    },
-    {
-      "id": 31,
-      "title": "dansk",
-      "add_date": 1513638872,
-      "total_items": 21,
-      "total_files": 31,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%AF%D9%86%D9%85%D8%A7%D8%B1%D9%83%D9%8A-130208213985704/",
-      "twitter": "https://twitter.com/islamhouseda",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-DA-DA.xml",
-      "torrent": "",
-      "language_code": "da",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/da/da/json"
-    },
-    {
-      "id": 32,
-      "title": "Deutsch",
-      "add_date": 1513638872,
-      "total_items": 850,
-      "total_files": 1855,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Deutsch.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseDe",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseDeutsch",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-DE-DE.xml",
-      "torrent": "",
-      "language_code": "de",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/de/de/json"
-    },
-    {
-      "id": 33,
-      "title": "ދިވެހި",
-      "add_date": 1513638872,
-      "total_items": 1,
-      "total_files": 9,
-      "active": true,
-      "available": true,
-      "facebook": "",
-      "twitter": "",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-DV-DV.xml",
-      "torrent": "",
-      "language_code": "dv",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/dv/dv/json"
-    },
-    {
-      "id": 36,
-      "title": "ελληνικά",
-      "add_date": 1513638872,
-      "total_items": 182,
-      "total_files": 329,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse.Greek",
-      "twitter": "https://twitter.com/IslamHouseEl",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseGreek",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-EL-EL.xml",
-      "torrent": "",
-      "language_code": "el",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/el/el/json"
-    },
-    {
-      "id": 37,
-      "title": "English",
-      "add_date": 1513638872,
-      "total_items": 4408,
-      "total_files": 8409,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseEN",
-      "twitter": "https://twitter.com/IslamHouseEn",
-      "youtube": "https://islamhouse.info/wa-en",
-      "instagram": "https://t.me/IslamHouseEnglish",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-EN-EN.xml",
-      "torrent": "",
-      "language_code": "en",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/en/en/json"
-    },
-    {
-      "id": 39,
-      "title": "español",
-      "add_date": 1513638872,
-      "total_items": 1444,
-      "total_files": 3238,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Spanish.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseEs",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSpanish",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-ES-ES.xml",
-      "torrent": "",
-      "language_code": "es",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/es/es/json"
-    },
-    {
-      "id": 40,
-      "title": "eesti",
-      "add_date": 1513638872,
-      "total_items": 4,
-      "total_files": 10,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-إستوني-486092894885171/",
-      "twitter": "https://twitter.com/islamhouseet",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-ET-ET.xml",
-      "torrent": "",
-      "language_code": "et",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/et/et/json"
-    },
-    {
-      "id": 42,
-      "title": "فارسی",
-      "add_date": 1513638872,
-      "total_items": 1477,
-      "total_files": 3724,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Persian.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseFa",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHousePersian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-FA-FA.xml",
-      "torrent": null,
-      "language_code": "fa",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/fa/fa/json"
-    },
-    {
-      "id": 43,
-      "title": "Pulaar",
-      "add_date": 1513638872,
-      "total_items": 220,
-      "total_files": 485,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-Pulaar-Fula-%D9%81%D9%88%D9%84%D8%A7%D9%86%D9%8A-735968869822068/",
-      "twitter": "https://twitter.com/islamhouseff",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseFula",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-FF-FF.xml",
-      "torrent": "",
-      "language_code": "ff",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ff/ff/json"
-    },
-    {
-      "id": 44,
-      "title": "suomi",
-      "add_date": 1513638872,
-      "total_items": 28,
-      "total_files": 29,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-فنلندي-961372547242599/",
-      "twitter": "https://twitter.com/islamhousefi",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseFinlandian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-FI-FI.xml",
-      "torrent": "",
-      "language_code": "fi",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/fi/fi/json"
-    },
-    {
-      "id": 47,
-      "title": "Français",
-      "add_date": 1513638872,
-      "total_items": 2432,
-      "total_files": 5419,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamhouseFr",
-      "twitter": "https://twitter.com/IslamHouseFr",
-      "youtube": "https://islamhouse.info/wa-fr",
-      "instagram": "https://t.me/IslamHouseFrench",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-FR-FR.xml",
-      "torrent": "",
-      "language_code": "fr",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/fr/fr/json"
-    },
-    {
-      "id": 53,
-      "title": "ગુજરાતી",
-      "add_date": 1513638872,
-      "total_items": 2,
-      "total_files": 2,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%BA%D9%88%D8%AC%D8%A7%D8%B1%D8%A7%D8%AA%D9%8A-896346643785675/",
-      "twitter": "https://twitter.com/islamhousegu",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-GU-GU.xml",
-      "torrent": "",
-      "language_code": "gu",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/gu/gu/json"
-    },
-    {
-      "id": 55,
-      "title": "Hausa",
-      "add_date": 1513638872,
-      "total_items": 1003,
-      "total_files": 3186,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseHausa",
-      "twitter": "https://twitter.com/islamhouseha",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseHausa",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-HA-HA.xml",
-      "torrent": "",
-      "language_code": "ha",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ha/ha/json"
-    },
-    {
-      "id": 56,
-      "title": "עברית",
-      "add_date": 1513638872,
-      "total_items": 82,
-      "total_files": 163,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-%D7%A2%D7%91%D7%A8%D7%99%D7%AA/1673155036250254",
-      "twitter": "",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-HE-HE.xml",
-      "torrent": "",
-      "language_code": "he",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/he/he/json"
-    },
-    {
-      "id": 57,
-      "title": "हिन्दी",
-      "add_date": 1513638872,
-      "total_items": 562,
-      "total_files": 1103,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Hindi.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseHi",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseHindi",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-HI-HI.xml",
-      "torrent": "",
-      "language_code": "hi",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/hi/hi/json"
-    },
-    {
-      "id": 61,
-      "title": "magyar",
-      "add_date": 1513638872,
-      "total_items": 187,
-      "total_files": 424,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-magyar-Hungarian-%D9%87%D9%86%D8%AC%D8%A7%D8%B1%D9%8A-388862454645209/?fref=ts",
-      "twitter": "https://twitter.com/islamhousehu",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseHungarian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-HU-HU.xml",
-      "torrent": "",
-      "language_code": "hu",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/hu/hu/json"
-    },
-    {
-      "id": 62,
-      "title": "Հայերէն",
-      "add_date": 1513638872,
-      "total_items": 173,
-      "total_files": 422,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-Հայերէն-906852962715703/",
-      "twitter": "https://twitter.com/islamhousehy",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseArmenian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-HY-HY.xml",
-      "torrent": "",
-      "language_code": "hy",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/hy/hy/json"
-    },
-    {
-      "id": 65,
-      "title": "Bahasa Indonesia",
-      "add_date": 1513638872,
-      "total_items": 2217,
-      "total_files": 4236,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseId",
-      "twitter": "https://twitter.com/IslamHouseId",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseIndonesian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-ID-ID.xml",
-      "torrent": "",
-      "language_code": "id",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/id/id/json"
-    },
-    {
-      "id": 71,
-      "title": "íslenska",
-      "add_date": 1513638872,
-      "total_items": 3,
-      "total_files": 3,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%A2%D9%8A%D8%B3%D9%84%D9%86%D8%AF%D9%8A-756044524517755/",
-      "twitter": "https://twitter.com/islamhouseis",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-IS-IS.xml",
-      "torrent": "",
-      "language_code": "is",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/is/is/json"
-    },
-    {
-      "id": 72,
-      "title": "italiano",
-      "add_date": 1513638872,
-      "total_items": 127,
-      "total_files": 207,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-Italiano/1581786788744477",
-      "twitter": "https://twitter.com/IslamHouseIt",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseItalian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-IT-IT.xml",
-      "torrent": "",
-      "language_code": "it",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/it/it/json"
-    },
-    {
-      "id": 74,
-      "title": "日本語",
-      "add_date": 1513638872,
-      "total_items": 265,
-      "total_files": 625,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-日本語-Japanese-ياباني-380641962145649",
-      "twitter": "https://twitter.com/IslamHouseJp",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseJapanese",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-JA-JA.xml",
-      "torrent": "",
-      "language_code": "ja",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ja/ja/json"
-    },
-    {
-      "id": 76,
-      "title": "ქართული",
-      "add_date": 1513638872,
-      "total_items": 42,
-      "total_files": 69,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%AC%D9%88%D8%B1%D8%AC%D9%8A-870912612987676/",
-      "twitter": "https://twitter.com/islamhouseka",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseGeorgian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-KA-KA.xml",
-      "torrent": "",
-      "language_code": "ka",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ka/ka/json"
-    },
-    {
-      "id": 80,
-      "title": "қазақ тілі",
-      "add_date": 1513638872,
-      "total_items": 491,
-      "total_files": 778,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-қазақ-тілі-1630705513878554/",
-      "twitter": "https://twitter.com/islamhousekk",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseKazakh",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-KK-KK.xml",
-      "torrent": "",
-      "language_code": "kk",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/kk/kk/json"
-    },
-    {
-      "id": 82,
-      "title": "ភាសាខ្មែរ",
-      "add_date": 1513638872,
-      "total_items": 30,
-      "total_files": 36,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%AE%D9%85%D9%8A%D8%B1%D9%8A-877862798973893/",
-      "twitter": "https://twitter.com/islamhousekm",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-KM-KM.xml",
-      "torrent": "",
-      "language_code": "km",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/km/km/json"
-    },
-    {
-      "id": 83,
-      "title": "ಕನ್ನಡ",
-      "add_date": 1513638872,
-      "total_items": 115,
-      "total_files": 192,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-ಕನ್ನಡ-1514429362178723/",
-      "twitter": "https://twitter.com/islamhousekn",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseKannada",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-KN-KN.xml",
-      "torrent": "",
-      "language_code": "kn",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/kn/kn/json"
-    },
-    {
-      "id": 84,
-      "title": "한국어",
-      "add_date": 1513638872,
-      "total_items": 122,
-      "total_files": 238,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-%ED%95%9C%EA%B5%AD%EC%96%B4-Korean-%D9%83%D9%88%D8%B1%D9%8A-609792965790049/",
-      "twitter": "https://twitter.com/islamhouseko",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseKorean",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-KO-KO.xml",
-      "torrent": "",
-      "language_code": "ko",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ko/ko/json"
-    },
-    {
-      "id": 86,
-      "title": "कश्मीरी",
-      "add_date": 1513638872,
-      "total_items": 2,
-      "total_files": 39,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-كشميري-767953029993830/",
-      "twitter": "https://twitter.com/islamhouseks",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-KS-KS.xml",
-      "torrent": "",
-      "language_code": "ks",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ks/ks/json"
-    },
-    {
-      "id": 87,
-      "title": "Kurdî",
-      "add_date": 1513638872,
-      "total_items": 1799,
-      "total_files": 3705,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Kurdish.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseKu",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseKurdish",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-KU-KU.xml",
-      "torrent": "",
-      "language_code": "ku",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ku/ku/json"
-    },
-    {
-      "id": 90,
-      "title": "Кыргызча",
-      "add_date": 1513638873,
-      "total_items": 45,
-      "total_files": 60,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-%D0%9A%D1%8B%D1%80%D0%B3%D1%8B%D0%B7-Kyrgyz-%D9%82%D8%B1%D8%BA%D9%8A%D8%B2%D9%8A-719886888140565/",
-      "twitter": "https://twitter.com/IslamHouseKy",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseKyrgyz",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-KY-KY.xml",
-      "torrent": "",
-      "language_code": "ky",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ky/ky/json"
-    },
-    {
-      "id": 93,
-      "title": "Luganda",
-      "add_date": 1513638873,
-      "total_items": 409,
-      "total_files": 646,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseLg",
-      "twitter": "https://twitter.com/islamhouselg",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseUgandan",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-LG-LG.xml",
-      "torrent": null,
-      "language_code": "lg",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/lg/lg/json"
-    },
-    {
-      "id": 97,
-      "title": "lietuvių",
-      "add_date": 1513638873,
-      "total_items": 7,
-      "total_files": 8,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-%D9%84%D9%8A%D8%AA%D9%88%D8%A7%D9%86%D9%8A/152921708373049",
-      "twitter": "https://twitter.com/islamhouselt",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-LT-LT.xml",
-      "torrent": "",
-      "language_code": "lt",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/lt/lt/json"
-    },
-    {
-      "id": 99,
-      "title": "latviešu",
-      "add_date": 1513638873,
-      "total_items": 2,
-      "total_files": 4,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D9%84%D8%A7%D8%AA%D9%81%D9%8A-1472776336350585/",
-      "twitter": "https://twitter.com/islamhouselv",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-LV-LV.xml",
-      "torrent": "",
-      "language_code": "lv",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/lv/lv/json"
-    },
-    {
-      "id": 100,
-      "title": "Malagasy",
-      "add_date": 1513638873,
-      "total_items": 8,
-      "total_files": 15,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D9%85%D9%84%D8%A7%D8%BA%D8%A7%D8%B4%D9%8A-1628236100754465/",
-      "twitter": "https://twitter.com/islamhousemg",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseMulagashi",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-MG-MG.xml",
-      "torrent": null,
-      "language_code": "mg",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/mg/mg/json"
-    },
-    {
-      "id": 103,
-      "title": "македонски",
-      "add_date": 1513638873,
-      "total_items": 16,
-      "total_files": 26,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-مقدوني-819412821510627/",
-      "twitter": "https://twitter.com/islamhousemk",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-MK-MK.xml",
-      "torrent": "",
-      "language_code": "mk",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/mk/mk/json"
-    },
-    {
-      "id": 104,
-      "title": "മലയാളം",
-      "add_date": 1513638873,
-      "total_items": 847,
-      "total_files": 1743,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Malayalam.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseMl",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseMalayalam",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-ML-ML.xml",
-      "torrent": "",
-      "language_code": "ml",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ml/ml/json"
-    },
-    {
-      "id": 105,
-      "title": "монгол",
-      "add_date": 1513638873,
-      "total_items": 1,
-      "total_files": 2,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D9%85%D9%86%D8%BA%D9%88%D9%84%D9%8A-1618238928417414/",
-      "twitter": "https://twitter.com/islamhousemn",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-MN-MN.xml",
-      "torrent": "",
-      "language_code": "mn",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/mn/mn/json"
-    },
-    {
-      "id": 106,
-      "title": "मराठी",
-      "add_date": 1513638873,
-      "total_items": 2,
-      "total_files": 2,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D9%85%D8%A7%D8%B1%D8%A7%D8%AB%D9%8A-1632983376985845/",
-      "twitter": "https://twitter.com/islamhousemr",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-MR-MR.xml",
-      "torrent": "",
-      "language_code": "mr",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/mr/mr/json"
-    },
-    {
-      "id": 107,
-      "title": "bahasa Melayu",
-      "add_date": 1513638873,
-      "total_items": 21,
-      "total_files": 84,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-ملايو-1634314916780761/",
-      "twitter": "https://twitter.com/islamhousems",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-MS-MS.xml",
-      "torrent": "",
-      "language_code": "ms",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ms/ms/json"
-    },
-    {
-      "id": 109,
-      "title": "ဗမာ",
-      "add_date": 1513638873,
-      "total_items": 5,
-      "total_files": 10,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-بورمي-1467539130234165/",
-      "twitter": "https://twitter.com/islamhousemy",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-MY-MY.xml",
-      "torrent": "",
-      "language_code": "my",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/my/my/json"
-    },
-    {
-      "id": 113,
-      "title": "नेपाली",
-      "add_date": 1513638873,
-      "total_items": 199,
-      "total_files": 394,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-%E0%A4%A8%E0%A5%87%E0%A4%AA%E0%A4%BE%E0%A4%B2%E0%A5%80-Nepali-%D9%86%D9%8A%D8%A8%D8%A7%D9%84%D9%8A-1477142409250575/?ref=ts&fref=ts",
-      "twitter": "https://twitter.com/IslamHouseNe",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseNepali",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-NE-NE.xml",
-      "torrent": null,
-      "language_code": "ne",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ne/ne/json"
-    },
-    {
-      "id": 115,
-      "title": "Nederlands",
-      "add_date": 1513638873,
-      "total_items": 504,
-      "total_files": 1012,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-Nederlands-Dutch-%D9%87%D9%88%D9%84%D9%86%D8%AF%D9%8A-418767331651814/",
-      "twitter": "https://twitter.com/IslamHouseDu",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseDutch",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-NL-NL.xml",
-      "torrent": "",
-      "language_code": "nl",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/nl/nl/json"
-    },
-    {
-      "id": 120,
-      "title": "Chichewa",
-      "add_date": 1513638873,
-      "total_items": 11,
-      "total_files": 25,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-شيشيوا-593140600789607/",
-      "twitter": "https://twitter.com/islamhouseny",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-NY-NY.xml",
-      "torrent": "",
-      "language_code": "ny",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ny/ny/json"
-    },
-    {
-      "id": 124,
-      "title": "afaan oromoo",
-      "add_date": 1513638873,
-      "total_items": 955,
-      "total_files": 4532,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-ଓଡ଼ିଆ-1632069223741381/",
-      "twitter": "https://twitter.com/islamhouseor",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseOromo",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-OR-OR.xml",
-      "torrent": "",
-      "language_code": "or",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/or/or/json"
-    },
-    {
-      "id": 128,
-      "title": "polski",
-      "add_date": 1513638873,
-      "total_items": 35,
-      "total_files": 55,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-Polski/683798185084363",
-      "twitter": "https://twitter.com/IslamHousePl",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHousePolish",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-PL-PL.xml",
-      "torrent": "",
-      "language_code": "pl",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/pl/pl/json"
-    },
-    {
-      "id": 129,
-      "title": "پښتو",
-      "add_date": 1513638873,
-      "total_items": 291,
-      "total_files": 4577,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousePs",
-      "twitter": "https://twitter.com/islamhouseps",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHousePashto",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-PS-PS.xml",
-      "torrent": "",
-      "language_code": "ps",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ps/ps/json"
-    },
-    {
-      "id": 130,
-      "title": "português",
-      "add_date": 1513638873,
-      "total_items": 549,
-      "total_files": 1129,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Portuguese.IslamHouse",
-      "twitter": "https://twitter.com/IslamHousePt",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHousePortuguese",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-PT-PT.xml",
-      "torrent": "",
-      "language_code": "pt",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/pt/pt/json"
-    },
-    {
-      "id": 133,
-      "title": "Ikirundi",
-      "add_date": 1513638873,
-      "total_items": 8,
-      "total_files": 8,
-      "active": true,
-      "available": true,
-      "facebook": null,
-      "twitter": null,
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-RN-RN.xml",
-      "torrent": "",
-      "language_code": "rn",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/rn/rn/json"
-    },
-    {
-      "id": 134,
-      "title": "română",
-      "add_date": 1513638873,
-      "total_items": 271,
-      "total_files": 635,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-rom%C3%A2n%C4%83-Romanian-%D8%B1%D9%88%D9%85%D8%A7%D9%86%D9%8A-853580524677953/?fref=ts",
-      "twitter": "https://twitter.com/islamhousero",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseRomanian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-RO-RO.xml",
-      "torrent": "",
-      "language_code": "ro",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ro/ro/json"
-    },
-    {
-      "id": 135,
-      "title": "Русский",
-      "add_date": 1513638873,
-      "total_items": 1408,
-      "total_files": 3020,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Russian.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseRu",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseRussian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-RU-RU.xml",
-      "torrent": "",
-      "language_code": "ru",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ru/ru/json"
-    },
-    {
-      "id": 136,
-      "title": "Kinyarwanda",
-      "add_date": 1513638873,
-      "total_items": 37,
-      "total_files": 72,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-كينيارواندا-1442975592696921/",
-      "twitter": "https://twitter.com/islamhouserw",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseKinyarwanda",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-RW-RW.xml",
-      "torrent": "",
-      "language_code": "rw",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/rw/rw/json"
-    },
-    {
-      "id": 139,
-      "title": "سنڌي",
-      "add_date": 1513638873,
-      "total_items": 16,
-      "total_files": 32,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-سندي-1463392667317483/",
-      "twitter": "https://twitter.com/islamhousesd",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SD-SD.xml",
-      "torrent": "",
-      "language_code": "sd",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sd/sd/json"
-    },
-    {
-      "id": 141,
-      "title": "Sängö",
-      "add_date": 1513638873,
-      "total_items": 65,
-      "total_files": 165,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHousecom-Sango/851133258241989",
-      "twitter": "https://twitter.com/islamhousesg",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSango",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SG-SG.xml",
-      "torrent": "",
-      "language_code": "sg",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sg/sg/json"
-    },
-    {
-      "id": 142,
-      "title": "සිංහල",
-      "add_date": 1513638873,
-      "total_items": 435,
-      "total_files": 885,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-සිංහල-153825271615795/",
-      "twitter": "https://twitter.com/islamhousesi",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSinhalese",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SI-SI.xml",
-      "torrent": "",
-      "language_code": "si",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/si/si/json"
-    },
-    {
-      "id": 143,
-      "title": "slovenčina",
-      "add_date": 1513638873,
-      "total_items": 14,
-      "total_files": 24,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-Slovensky/1654951224721387",
-      "twitter": null,
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSlovak",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SK-SK.xml",
-      "torrent": "",
-      "language_code": "sk",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sk/sk/json"
-    },
-    {
-      "id": 144,
-      "title": "slovenščina",
-      "add_date": 1513638873,
-      "total_items": 15,
-      "total_files": 22,
-      "active": true,
-      "available": true,
-      "facebook": null,
-      "twitter": "https://twitter.com/islamhousesl",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSlovenian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SL-SL.xml",
-      "torrent": "",
-      "language_code": "sl",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sl/sl/json"
-    },
-    {
-      "id": 147,
-      "title": "Soomaali",
-      "add_date": 1513638873,
-      "total_items": 549,
-      "total_files": 1734,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseSo",
-      "twitter": "https://twitter.com/islamhouseso",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSomali",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SO-SO.xml",
-      "torrent": null,
-      "language_code": "so",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/so/so/json"
-    },
-    {
-      "id": 148,
-      "title": "Shqip",
-      "add_date": 1513638873,
-      "total_items": 732,
-      "total_files": 1196,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseSq/",
-      "twitter": "https://twitter.com/IslamHouseSq",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseAlbanian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SQ-SQ.xml",
-      "torrent": "",
-      "language_code": "sq",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sq/sq/json"
-    },
-    {
-      "id": 149,
-      "title": "Српски",
-      "add_date": 1513638873,
-      "total_items": 690,
-      "total_files": 1249,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseSR/",
-      "twitter": "https://twitter.com/islamhousesr",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSerbian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SR-SR.xml",
-      "torrent": null,
-      "language_code": "sr",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sr/sr/json"
-    },
-    {
-      "id": 153,
-      "title": "svenska",
-      "add_date": 1513638873,
-      "total_items": 47,
-      "total_files": 52,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-سويدي-435570486644281/",
-      "twitter": "https://twitter.com/islamhousesv",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSwedish",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SV-SV.xml",
-      "torrent": null,
-      "language_code": "sv",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sv/sv/json"
-    },
-    {
-      "id": 154,
-      "title": "Kiswahili",
-      "add_date": 1513638873,
-      "total_items": 1511,
-      "total_files": 3704,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseSw",
-      "twitter": "https://twitter.com/islamhousesw",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSwahili",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SW-SW.xml",
-      "torrent": "",
-      "language_code": "sw",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sw/sw/json"
-    },
-    {
-      "id": 155,
-      "title": "தமிழ்",
-      "add_date": 1513638873,
-      "total_items": 633,
-      "total_files": 1285,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-தமிழ்-761017944020001/",
-      "twitter": "https://twitter.com/islamhouseta",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseTamil",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TA-TA.xml",
-      "torrent": "",
-      "language_code": "ta",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ta/ta/json"
-    },
-    {
-      "id": 156,
-      "title": "తెలుగు",
-      "add_date": 1513638873,
-      "total_items": 401,
-      "total_files": 887,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Telugu.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseTe",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseTelugu",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TE-TE.xml",
-      "torrent": "",
-      "language_code": "te",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/te/te/json"
-    },
-    {
-      "id": 157,
-      "title": "тоҷикӣ",
-      "add_date": 1513638873,
-      "total_items": 1070,
-      "total_files": 2044,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Tajik.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseTg",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseTajik",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TG-TG.xml",
-      "torrent": null,
-      "language_code": "tg",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/tg/tg/json"
-    },
-    {
-      "id": 158,
-      "title": "ไทย",
-      "add_date": 1513638873,
-      "total_items": 1540,
-      "total_files": 2990,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Thai.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseTh",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseThai",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TH-TH.xml",
-      "torrent": "",
-      "language_code": "th",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/th/th/json"
-    },
-    {
-      "id": 159,
-      "title": "ትግርኛ",
-      "add_date": 1513638873,
-      "total_items": 994,
-      "total_files": 2796,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-%E1%89%B5%E1%8C%8D%E1%88%A8%E1%8A%9B-1515618375367724/?ref=aymt_homepage_panel",
-      "twitter": "https://twitter.com/islamhouseti",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseTigrinya",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TI-TI.xml",
-      "torrent": "",
-      "language_code": "ti",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ti/ti/json"
-    },
-    {
-      "id": 160,
-      "title": "Türkmençe",
-      "add_date": 1513638873,
-      "total_items": 33,
-      "total_files": 71,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-%D1%82%D2%AF%D1%80%D0%BA%D0%BC%D0%B5%D0%BD%D1%87%D0%B5-Turkmani-%D8%AA%D8%B1%D9%83%D9%85%D8%A7%D9%86%D9%8A-805586642895570/?fref=ts",
-      "twitter": "https://twitter.com/islamhousetk",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseTurkmani",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TK-TK.xml",
-      "torrent": "",
-      "language_code": "tk",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/tk/tk/json"
-    },
-    {
-      "id": 161,
-      "title": "Wikang Tagalog",
-      "add_date": 1513638873,
-      "total_items": 708,
-      "total_files": 1422,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Tagalog.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseTl",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseTagalog",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TL-TL.xml",
-      "torrent": "",
-      "language_code": "tl",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/tl/tl/json"
-    },
-    {
-      "id": 164,
-      "title": "Türkçe",
-      "add_date": 1513638873,
-      "total_items": 1558,
-      "total_files": 3155,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseTR",
-      "twitter": "https://twitter.com/islamhousetr",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseTurkish",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TR-TR.xml",
-      "torrent": "",
-      "language_code": "tr",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/tr/tr/json"
-    },
-    {
-      "id": 166,
-      "title": "татар теле",
-      "add_date": 1513638873,
-      "total_items": 23,
-      "total_files": 31,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHousecom-%D1%82%D0%B0%D1%82%D0%B0%D1%80-%D1%82%D0%B5%D0%BB%D0%B5-Tatar-%D8%AA%D8%AA%D8%A7%D8%B1%D9%8A-1690858581134396/?ref=ts&fref=ts",
-      "twitter": "https://twitter.com/IslamHouseTt",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TT-TT.xml",
-      "torrent": "",
-      "language_code": "tt",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/tt/tt/json"
-    },
-    {
-      "id": 169,
-      "title": "ئۇيغۇرچە",
-      "add_date": 1513638873,
-      "total_items": 1181,
-      "total_files": 2376,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Uyghur.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseUg",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseUyghur",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-UG-UG.xml",
-      "torrent": "",
-      "language_code": "ug",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ug/ug/json"
-    },
-    {
-      "id": 170,
-      "title": "українська",
-      "add_date": 1513638873,
-      "total_items": 178,
-      "total_files": 391,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-українська-434338056754388/",
-      "twitter": "https://twitter.com/islamhouseuk",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseUkrainian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-UK-UK.xml",
-      "torrent": "",
-      "language_code": "uk",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/uk/uk/json"
-    },
-    {
-      "id": 171,
-      "title": "اردو",
-      "add_date": 1513638873,
-      "total_items": 3260,
-      "total_files": 5561,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Urdu.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseUr",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseUrdu",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-UR-UR.xml",
-      "torrent": "",
-      "language_code": "ur",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ur/ur/json"
-    },
-    {
-      "id": 172,
-      "title": "Ўзбек",
-      "add_date": 1513638873,
-      "total_items": 2588,
-      "total_files": 4917,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Uzbek.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseUz",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseUzbek",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-UZ-UZ.xml",
-      "torrent": "",
-      "language_code": "uz",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/uz/uz/json"
-    },
-    {
-      "id": 174,
-      "title": "Tiếng Việt",
-      "add_date": 1513638873,
-      "total_items": 723,
-      "total_files": 1399,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/Vietnamese.IslamHouse",
-      "twitter": "https://twitter.com/IslamHouseVi",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseVietnamese",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-VI-VI.xml",
-      "torrent": null,
-      "language_code": "vi",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/vi/vi/json"
-    },
-    {
-      "id": 177,
-      "title": "Wollof",
-      "add_date": 1513638873,
-      "total_items": 292,
-      "total_files": 354,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-Wolof/866025686822748",
-      "twitter": "https://twitter.com/islamhousewo",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseWolof",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-WO-WO.xml",
-      "torrent": null,
-      "language_code": "wo",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/wo/wo/json"
-    },
-    {
-      "id": 178,
-      "title": "isiXhosa",
-      "add_date": 1513638873,
-      "total_items": 4,
-      "total_files": 4,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-%D8%AE%D9%88%D8%B3%D9%8A/897717023629082",
-      "twitter": "https://twitter.com/islamhousexh",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-XH-XH.xml",
-      "torrent": "",
-      "language_code": "xh",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/xh/xh/json"
-    },
-    {
-      "id": 180,
-      "title": "Èdè Yorùbá",
-      "add_date": 1513638873,
-      "total_items": 505,
-      "total_files": 1110,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-Èdè-Yorùbá-135683973435149/",
-      "twitter": "https://twitter.com/islamhouseyo",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseYoruba",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-YO-YO.xml",
-      "torrent": null,
-      "language_code": "yo",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/yo/yo/json"
-    },
-    {
-      "id": 182,
-      "title": "中文",
-      "add_date": 1513638873,
-      "total_items": 3589,
-      "total_files": 6544,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouseZh",
-      "twitter": "https://twitter.com/IslamHouseZh",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseChinese",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-ZH-ZH.xml",
-      "torrent": "",
-      "language_code": "zh",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/zh/zh/json"
-    },
-    {
-      "id": 183,
-      "title": "isiZulu",
-      "add_date": 1513638873,
-      "total_items": 2,
-      "total_files": 2,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%B2%D9%88%D9%84%D9%88-480962708744304/",
-      "twitter": "https://twitter.com/islamhousezu",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-ZU-ZU.xml",
-      "torrent": "",
-      "language_code": "zu",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/zu/zu/json"
-    },
-    {
-      "id": 185,
-      "title": "Bassa",
-      "add_date": 1513812367,
-      "total_items": 1,
-      "total_files": 2,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%A8%D8%A7%D8%B3%D8%A7-900992693270398/",
-      "twitter": "https://twitter.com/islamhouselr",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-LR-LR.xml",
-      "torrent": "",
-      "language_code": "lr",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/lr/lr/json"
-    },
-    {
-      "id": 186,
-      "title": "Bi zimanê Kurdî",
-      "add_date": 1513812367,
-      "total_items": 3,
-      "total_files": 11,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-كرمنجي-128334060839923/",
-      "twitter": "https://twitter.com/islamhousekd",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-KD-KD.xml",
-      "torrent": "",
-      "language_code": "kd",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/kd/kd/json"
-    },
-    {
-      "id": 187,
-      "title": "Cham",
-      "add_date": 1513812367,
-      "total_items": 1,
-      "total_files": 2,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%AA%D8%B4%D8%A7%D9%85%D9%8A-1614403378848135/",
-      "twitter": "https://twitter.com/islamhousecj",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-CJ-CJ.xml",
-      "torrent": "",
-      "language_code": "cj",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/cj/cj/json"
-    },
-    {
-      "id": 188,
-      "title": "Jóola",
-      "add_date": 1513812368,
-      "total_items": 1,
-      "total_files": 7,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-%D8%AC%D9%88%D9%84%D8%A7/1459115387724321",
-      "twitter": "https://twitter.com/islamhousejo",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-JO-JO.xml",
-      "torrent": "",
-      "language_code": "jo",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/jo/jo/json"
-    },
-    {
-      "id": 189,
-      "title": "Lingala",
-      "add_date": 1513812368,
-      "total_items": 1,
-      "total_files": 1,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D9%84%D9%8A%D9%86%D8%BA%D8%A7%D9%84%D8%A7-1434938883503104/",
-      "twitter": "https://twitter.com/islamhousecd",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-CD-CD.xml",
-      "torrent": "",
-      "language_code": "cd",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/cd/cd/json"
-    },
-    {
-      "id": 190,
-      "title": "Maguindanao",
-      "add_date": 1513812368,
-      "total_items": 51,
-      "total_files": 98,
-      "active": true,
-      "available": true,
-      "facebook": null,
-      "twitter": null,
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseMaguindanao",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-MDH-MDH.xml",
-      "torrent": "",
-      "language_code": "mdh",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/mdh/mdh/json"
-    },
-    {
-      "id": 191,
-      "title": "Mandinka",
-      "add_date": 1513812368,
-      "total_items": 196,
-      "total_files": 539,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHousecom-Mandinko/718388061585314",
-      "twitter": "https://twitter.com/islamhousemd",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseMandinka",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-MD-MD.xml",
-      "torrent": null,
-      "language_code": "md",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/md/md/json"
-    },
-    {
-      "id": 192,
-      "title": "Mõõré",
-      "add_date": 1513812368,
-      "total_items": 92,
-      "total_files": 164,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-Mõõré-1474584239521533/",
-      "twitter": "https://twitter.com/islamhousemos",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseMoore",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-MOS-MOS.xml",
-      "torrent": null,
-      "language_code": "mos",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/mos/mos/json"
-    },
-    {
-      "id": 193,
-      "title": "Norwegian",
-      "add_date": 1513812368,
-      "total_items": 20,
-      "total_files": 24,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-نرويجي-1436615980001599/",
-      "twitter": "https://twitter.com/islamhousesj",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SJ-SJ.xml",
-      "torrent": "",
-      "language_code": "sj",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sj/sj/json"
-    },
-    {
-      "id": 194,
-      "title": "Soninke",
-      "add_date": 1513812368,
-      "total_items": 376,
-      "total_files": 884,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHousecom-Soninke/561260014006917",
-      "twitter": "https://twitter.com/islamhousesx",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseSoninke",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-SX-SX.xml",
-      "torrent": "",
-      "language_code": "sx",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/sx/sx/json"
-    },
-    {
-      "id": 195,
-      "title": "Tamazight",
-      "add_date": 1513812368,
-      "total_items": 44,
-      "total_files": 62,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-Tamazight/1605976252995973",
-      "twitter": "https://twitter.com/islamhousetz",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TZ-TZ.xml",
-      "torrent": "",
-      "language_code": "tz",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/tz/tz/json"
-    },
-    {
-      "id": 196,
-      "title": "tamashaq",
-      "add_date": 1513812368,
-      "total_items": 36,
-      "total_files": 40,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-طارقي-944091535650768/",
-      "twitter": "https://twitter.com/islamhousetm",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-TM-TM.xml",
-      "torrent": "",
-      "language_code": "tm",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/tm/tm/json"
-    },
-    {
-      "id": 197,
-      "title": "Адыгэбзэ",
-      "add_date": 1513812368,
-      "total_items": 125,
-      "total_files": 221,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%B4%D8%B1%D9%83%D8%B3%D9%8A-1606906409590181/",
-      "twitter": "https://twitter.com/islamhouseci",
-      "youtube": null,
-      "instagram": "https://t.me/IslamHouseCircassian",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-CI-CI.xml",
-      "torrent": "",
-      "language_code": "ci",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ci/ci/json"
-    },
-    {
-      "id": 198,
-      "title": "ГӀалгӀай",
-      "add_date": 1513812368,
-      "total_items": 1,
-      "total_files": 2,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%A5%D9%86%D8%BA%D9%88%D8%B4%D9%8A-1048810158471743/",
-      "twitter": "https://twitter.com/islamhouseinh",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-INH-INH.xml",
-      "torrent": "",
-      "language_code": "inh",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/inh/inh/json"
-    },
-    {
-      "id": 199,
-      "title": "أنكو",
-      "add_date": 1513812368,
-      "total_items": 10,
-      "total_files": 23,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-أنكو-1619419445009344/",
-      "twitter": "https://twitter.com/islamhousenk",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-NK-NK.xml",
-      "torrent": "",
-      "language_code": "nk",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/nk/nk/json"
-    },
-    {
-      "id": 200,
-      "title": "براهوئي",
-      "add_date": 1513812368,
-      "total_items": 1,
-      "total_files": 1,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-%D8%A8%D8%B1%D8%A7%D9%87%D9%88%D8%A6%D9%8A-805669316217156/",
-      "twitter": "https://twitter.com/islamhousebh",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-BH-BH.xml",
-      "torrent": "",
-      "language_code": "bh",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/bh/bh/json"
-    },
-    {
-      "id": 201,
-      "title": "غجري",
-      "add_date": 1513812368,
-      "total_items": 1,
-      "total_files": 1,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/pages/IslamHouse-%D8%BA%D8%AC%D8%B1%D9%8A/879967542089226",
-      "twitter": "https://twitter.com/islamhousegh",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-GH-GH.xml",
-      "torrent": "",
-      "language_code": "gh",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/gh/gh/json"
-    },
-    {
-      "id": 202,
-      "title": "غموقي",
-      "add_date": 1513812368,
-      "total_items": 5,
-      "total_files": 5,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-غموقي-1475671469417440/",
-      "twitter": "https://twitter.com/islamhousegm",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-GM-GM.xml",
-      "torrent": "",
-      "language_code": "gm",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/gm/gm/json"
-    },
-    {
-      "id": 203,
-      "title": "فلاتي",
-      "add_date": 1513812368,
-      "total_items": 24,
-      "total_files": 34,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-فلاتي-595236770618238/",
-      "twitter": "https://twitter.com/islamhousefl",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-FL-FL.xml",
-      "torrent": "",
-      "language_code": "fl",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/fl/fl/json"
-    },
-    {
-      "id": 204,
-      "title": "فلبيني مرناو",
-      "add_date": 1513812368,
-      "total_items": 15,
-      "total_files": 20,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-فلبيني-إيرانوني-958343520891219/",
-      "twitter": "https://twitter.com/islamhouseir",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-IR-IR.xml",
-      "torrent": "",
-      "language_code": "ir",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/ir/ir/json"
-    },
-    {
-      "id": 205,
-      "title": "قمري",
-      "add_date": 1513812368,
-      "total_items": 2,
-      "total_files": 4,
-      "active": true,
-      "available": true,
-      "facebook": "https://www.facebook.com/IslamHouse-قمري-1577775292498622/",
-      "twitter": "https://twitter.com/islamhousecm",
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-CM-CM.xml",
-      "torrent": "",
-      "language_code": "cm",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/cm/cm/json"
-    },
-    {
-      "id": 207,
-      "title": "Yao",
-      "add_date": 1605006521,
-      "total_items": 2,
-      "total_files": 3,
-      "active": true,
-      "available": true,
-      "facebook": null,
-      "twitter": null,
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-YAO-YAO.xml",
-      "torrent": "",
-      "language_code": "yao",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/yao/yao/json"
-    },
-    {
-      "id": 209,
-      "title": "Dagbani",
-      "add_date": 1605013177,
-      "total_items": 1,
-      "total_files": 1,
-      "active": true,
-      "available": true,
-      "facebook": null,
-      "twitter": null,
-      "youtube": "",
-      "instagram": "",
-      "rss": "https://islamhouse.com/RSS/IslamHouse-all-DAG-DAG.xml",
-      "torrent": "",
-      "language_code": "dag",
-      "site_contents": "https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/sitecontent/dag/dag/json"
+    "verses": [
+        {
+            "id": 1,
+            "verse_number": 1,
+            "verse_key": "1:1",
+            "hizb_number": 1,
+            "rub_el_hizb_number": 1,
+            "ruku_number": 1,
+            "manzil_number": 1,
+            "sajdah_number": null,
+            "page_number": 1,
+            "juz_number": 1,
+            "words": [
+                {
+                    "id": 1,
+                    "position": 1,
+                    "audio_url": "wbw/001_001_001.mp3",
+                    "char_type_name": "word",
+                    "code_v2": "ﱁ",
+                    "text_qpc_hafs": "بِسۡمِ",
+                    "page_number": 1,
+                    "line_number": 2,
+                    "text": "ﱁ",
+                    "translation": {
+                        "text": "In (the) name",
+                        "language_name": "english"
+                    },
+                    "transliteration": {
+                        "text": "bis'mi",
+                        "language_name": "english"
+                    }
+                },
+                {
+                    "id": 2,
+                    "position": 2,
+                    "audio_url": "wbw/001_001_002.mp3",
+                    "char_type_name": "word",
+                    "code_v2": "ﱂ",
+                    "text_qpc_hafs": "ٱللَّهِ",
+                    "page_number": 1,
+                    "line_number": 2,
+                    "text": "ﱂ",
+                    "translation": {
+                        "text": "(of) Allah",
+                        "language_name": "english"
+                    },
+                    "transliteration": {
+                        "text": "l-lahi",
+                        "language_name": "english"
+                    }
+                },
+                ....
+            ]
+        },
+        ...
+    ],
+    "pagination": {
+        "per_page": 10,
+        "current_page": 1,
+        "next_page": null,
+        "total_pages": 1,
+        "total_records": 7
+    }
+}
+
+View Modes: Reading View vs Translation View
+When building a Quran application, you'll typically implement one of two view modes:
+
+Aspect	Reading View	Translation View
+Layout Unit	Mushaf page (lines)	Single verse
+Data Grouping	Words → Lines → Pages	Verses (no grouping)
+Line Construction	Required	Not applicable
+Use Case	Physical Mushaf layout	Study with translations
+Reading View: From API Response to Rendered Page
+The API returns verses, but Reading View needs lines to match the physical Mushaf layout.
+
+Why? A single Mushaf line often contains words from multiple verses. You must group by line, not by verse.
+
+Word Layout Properties:
+
+Each word includes:
+
+page_number: Which Mushaf page (1-604)
+line_number: Which line on that page (1-15 typically)
+position: Word order within the verse
+Note: The API returns words in correct Mushaf order, so no sorting is needed—just group by line.
+
+Data Transformation (Pseudo-code):
+
+// Step 1: Extract all words from all verses (already in correct order)
+words = verses.flatMap(verse => verse.words)
+
+// Step 2: Group words by page and line (order is preserved)
+lines = groupBy(words, word => `page-${page_number}-line-${line_number}`)
+// Result: { "page-1-line-1": [words], "page-1-line-2": [words], ... }
+
+// Step 3: Render each line, then render words within each line
+for each line in lines:
+    for each word in line:
+        render word with font based on page_number
+
+Key Points:
+
+Cross-Verse Lines: One line may contain words from multiple verses
+Font Loading: For QCF fonts, page_number determines which font file to load
+Complete Reading View Example (QCF V2)
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>Quran Reading View - Glyph-Based Rendering</title>
+  <style>
+    @font-face {
+      font-family: 'UthmanicHafs';
+      src: url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2') format('woff2');
+      font-display: swap;
+    }
+
+    .page-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 20px;
+      font-family: sans-serif;
+      color: #666;
+    }
+
+    .mushaf-line {
+      display: flex;
+      justify-content: center;
+      direction: rtl;
+      font-size: 28px;
+      line-height: 2.5;
+      margin-bottom: 8px;
+      min-height: 48px;
+    }
+
+    .word {
+      display: inline-block;
+      cursor: pointer;
+      padding: 0 2px;
+      transition: background-color 0.2s;
+    }
+
+    .word:hover {
+      background-color: rgba(0, 123, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    .word.loading {
+      font-family: 'UthmanicHafs', serif;
+      opacity: 0.7;
+    }
+
+    .verse-separator {
+      display: inline-block;
+      font-family: 'UthmanicHafs', serif;
+      color: #888;
+      margin: 0 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <div class="page-header">
+      <span id="page-info">Loading...</span>
+    </div>
+    <div id="mushaf-page"></div>
+  </div>
+
+  <script>
+    const CDN_BASE = 'https://verses.quran.foundation';
+    const API_BASE = 'https://apis.quran.foundation/content/api/v4';
+    const loadedFonts = new Set();
+
+    // NOTE: In production, obtain these from your server
+    const accessToken = 'YOUR_ACCESS_TOKEN';
+    const clientId = 'YOUR_CLIENT_ID';
+
+    /**
+     * Load QCF V2 font for a specific Mushaf page
+     */
+    async function loadPageFont(pageNumber) {
+      const fontName = `p${pageNumber}-v2`;
+      if (loadedFonts.has(fontName)) return fontName;
+
+      try {
+        const fontFace = new FontFace(
+          fontName,
+          `url('${CDN_BASE}/fonts/quran/hafs/v2/woff2/p${pageNumber}.woff2')`
+        );
+        fontFace.display = 'block';
+        await fontFace.load();
+        document.fonts.add(fontFace);
+        loadedFonts.add(fontName);
+      } catch (error) {
+        console.error(`Failed to load font for page ${pageNumber}:`, error);
+      }
+      return fontName;
+    }
+
+    /**
+     * Group words by their line number for Mushaf layout
+     */
+    function groupWordsByLine(verses) {
+      const lines = new Map();
+
+      // Extract all words from all verses
+      verses.forEach(verse => {
+        verse.words.forEach(word => {
+          const lineKey = `line-${word.line_number}`;
+
+          if (!lines.has(lineKey)) {
+            lines.set(lineKey, []);
+          }
+          lines.get(lineKey).push({
+            ...word,
+            verseKey: verse.verse_key
+          });
+        });
+      });
+
+      // Convert to sorted array of lines
+      return Array.from(lines.entries())
+        .sort((a, b) => {
+          const lineA = parseInt(a[0].split('-')[1]);
+          const lineB = parseInt(b[0].split('-')[1]);
+          return lineA - lineB;
+        })
+        .map(([lineKey, words]) => ({
+          lineNumber: parseInt(lineKey.split('-')[1]),
+          words
+        }));
+    }
+
+    /**
+     * Render a single word with QCF font
+     */
+    function renderWord(word, isFontLoaded) {
+      const span = document.createElement('span');
+      span.className = 'word' + (isFontLoaded ? '' : ' loading');
+      span.dataset.page = word.page_number;
+      span.dataset.verseKey = word.verseKey;
+      span.dataset.position = word.position;
+
+      // Handle verse end markers with Unicode font
+      if (word.char_type_name === 'end') {
+        span.classList.add('verse-separator');
+        span.textContent = word.text_qpc_hafs;
+      } else if (isFontLoaded) {
+        // Use QCF glyph - MUST use innerHTML for glyph codes!
+        span.style.fontFamily = `p${word.page_number}-v2`;
+        span.innerHTML = word.code_v2;
+      } else {
+        // Fallback to Unicode while font loads
+        span.textContent = word.text_qpc_hafs;
+      }
+
+      return span;
+    }
+
+    /**
+     * Render a Mushaf line (may contain words from multiple verses)
+     */
+    function renderLine(lineData, loadedPages) {
+      const lineDiv = document.createElement('div');
+      lineDiv.className = 'mushaf-line';
+      lineDiv.dataset.lineNumber = lineData.lineNumber;
+
+      lineData.words.forEach(word => {
+        const isFontLoaded = loadedPages.has(word.page_number);
+        const wordSpan = renderWord(word, isFontLoaded);
+        lineDiv.appendChild(wordSpan);
+      });
+
+      return lineDiv;
+    }
+
+    /**
+     * Fetch and render a Mushaf page
+     */
+    async function renderMushafPage(pageNumber) {
+      const container = document.getElementById('mushaf-page');
+      const pageInfo = document.getElementById('page-info');
+
+      container.innerHTML = '';
+      pageInfo.textContent = `Page ${pageNumber} - Loading...`;
+
+      try {
+        // Fetch verses for this page with line_number included
+        const response = await fetch(
+          `${API_BASE}/verses/by_page/${pageNumber}?` +
+          `words=true&word_fields=code_v2,text_qpc_hafs,line_number,page_number&mushaf=1`,
+          {
+            headers: {
+              'x-auth-token': accessToken,
+              'x-client-id': clientId
+            }
+          }
+        );
+        const data = await response.json();
+        const verses = data.verses;
+
+        if (!verses || verses.length === 0) {
+          pageInfo.textContent = `Page ${pageNumber} - No verses found`;
+          return;
+        }
+
+        // Get unique page numbers (usually just one, but can span pages)
+        const pageNumbers = [...new Set(
+          verses.flatMap(v => v.words.map(w => w.page_number))
+        )];
+
+        // Group words by line for Mushaf layout
+        const lines = groupWordsByLine(verses);
+
+        // Render with fallback fonts first
+        const loadedPages = new Set();
+        lines.forEach(lineData => {
+          const lineDiv = renderLine(lineData, loadedPages);
+          container.appendChild(lineDiv);
+        });
+
+        pageInfo.textContent = `Page ${pageNumber} - ${verses.length} verses`;
+
+        // Load QCF fonts in parallel
+        await Promise.all(pageNumbers.map(loadPageFont));
+
+        // Update words with loaded fonts
+        pageNumbers.forEach(pn => loadedPages.add(pn));
+
+        document.querySelectorAll('.word.loading').forEach(span => {
+          const page = parseInt(span.dataset.page);
+          if (loadedPages.has(page) && !span.classList.contains('verse-separator')) {
+            span.classList.remove('loading');
+            span.style.fontFamily = `p${page}-v2`;
+            // Re-render with glyph code
+            const verseKey = span.dataset.verseKey;
+            const position = parseInt(span.dataset.position);
+
+            // Find the original word data
+            const verse = verses.find(v => v.verse_key === verseKey);
+            const word = verse?.words.find(w => w.position === position);
+
+            if (word && word.code_v2) {
+              span.innerHTML = word.code_v2;
+            }
+          }
+        });
+
+      } catch (error) {
+        console.error('Failed to render page:', error);
+        pageInfo.textContent = `Page ${pageNumber} - Error loading`;
+      }
+    }
+
+    // Render page 1 (Al-Fatiha starts on page 1)
+    renderMushafPage(1);
+  </script>
+</body>
+</html>
+
+
+Key implementation details:
+
+Line Grouping: Words are grouped by line_number to match the physical Mushaf layout
+Progressive Loading: Unicode fallback text is shown immediately, then replaced with QCF glyphs when fonts load
+Verse End Markers: char_type_name === 'end' words use Unicode font (renders better)
+innerHTML for Glyphs: QCF code_v2 values must use innerHTML, not textContent
+Cross-Verse Lines: Each line may contain words from multiple verses—this is handled by grouping
+Translation View: Verse-by-Verse Rendering
+Translation View displays verses one by one with their translations. No line grouping needed.
+
+Requesting Translations
+To include translations in your API response, add the translations parameter with comma-separated translation resource IDs:
+
+curl -X GET "https://apis.quran.foundation/content/api/v4/verses/by_chapter/1?words=true&word_fields=code_v2,text_qpc_hafs&translations=131,95" \
+  -H "x-auth-token: YOUR_ACCESS_TOKEN" \
+  -H "x-client-id: YOUR_CLIENT_ID"
+
+
+The response will include a translations array for each verse:
+
+{
+  "verses": [
+    {
+      "verse_key": "1:1",
+      "words": [...],
+      "translations": [
+        {
+          "id": 1338348,
+          "resource_id": 95,
+          "text": "In the name of Allah, the Merciful, the Compassionate<sup foot_note=\"176997\">1</sup>"
+        }
+      ]
     }
   ]
 }
-GET
-Footer content
-https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/get-footer/ar/json
-Request:
 
-Syntax: {endpoint}/{key}/main/get-footer/{flang}/{format}
 
-https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/get-footer/ar/json
+Handling Translation HTML and Footnotes
+⚠️ Important: Translation text is returned as HTML, not plain text. It may contain footnote markers that need special handling.
 
-Describe the request
-Describes site footer content.
-Describe the response:
-detailed information for footer links.
-Example Request
-Footer content
-View More
-curl
-curl --location 'https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/main/get-footer/ar/json'
-200 OK
-Example Response
-Body
-Headers (14)
-View More
-json
-[
-  {
-    "id": 7,
-    "source_id": 388239,
-    "type": "footer",
-    "add_type": "link",
-    "title": "لتعريف أصدقاءك بالإسلام",
-    "url": "https://islamhouse.com/chat/",
-    "description": "",
-    "full_description": "",
-    "default_locale": "ar",
-    "created_at": "2018-07-30 01:35:59",
-    "updated_at": "2019-01-03 02:58:51",
-    "order": null,
-    "enabled": 1,
-    "attachments": [
-      {
-        "order": 0,
-        "attachable_id": 7,
-        "filename": "syr-alemam-malk-rhmh-allh-taaal",
-        "name": "syr-alemam-malk-rhmh-allh-taaal",
-        "path": "data/ku/ih_videos/pic/pic_index/401417.jpg",
-        "url": "data/ku/ih_videos/pic/pic_index/401417.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      },
-      {
-        "order": 0,
-        "attachable_id": 7,
-        "filename": "syr-alnby-aalyh-alsla-oalslam-8",
-        "name": "syr-alnby-aalyh-alsla-oalslam-8",
-        "path": "data/ur/ih_videos/pic/pic_index/224893.jpg",
-        "url": "data/ur/ih_videos/pic/pic_index/224893.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
+Footnote Format:
+
+Footnotes appear as <sup> elements with a foot_note attribute containing the footnote ID:
+
+"text": "Praise<sup foot_note=\"176998\">1</sup> be to Allah, the Lord<sup foot_note=\"176999\">2</sup> of the entire universe."
+
+
+Rendering Translation Text:
+
+Since the text contains HTML, you must render it using innerHTML (or React's dangerouslySetInnerHTML):
+
+// ✅ Correct - renders HTML including footnote markers
+translationDiv.innerHTML = translation.text;
+
+// ❌ Wrong - displays raw HTML tags as text
+translationDiv.textContent = translation.text;
+
+Fetching Footnote Content:
+
+When a user clicks a footnote, fetch its content using the footnote ID:
+
+// Extract footnote ID from the clicked <sup> element
+const footnoteId = supElement.getAttribute('foot_note');
+
+// Fetch footnote content
+const response = await fetch(
+  `${API_BASE}/foot_notes/${footnoteId}`,
+  { headers: { 'x-auth-token': accessToken, 'x-client-id': clientId } }
+);
+const data = await response.json();
+// data.footNote.text contains the footnote explanation
+
+Complete Footnote Handling Example:
+
+function renderTranslation(translation, container) {
+  const div = document.createElement('div');
+  div.innerHTML = translation.text;
+
+  // Add click handler for footnotes
+  div.addEventListener('click', async (event) => {
+    const target = event.target;
+    if (target.tagName !== 'SUP') return;
+
+    const footnoteId = target.getAttribute('foot_note');
+    if (!footnoteId) return;
+
+    // Fetch and display footnote
+    const response = await fetch(`${API_BASE}/foot_notes/${footnoteId}`, {
+      headers: { 'x-auth-token': accessToken, 'x-client-id': clientId }
+    });
+    const data = await response.json();
+    showFootnotePopup(data.footNote.text);
+  });
+
+  container.appendChild(div);
+}
+
+Data Flow (Pseudo-code):
+
+for each verse in verses:
+    render verse.words (Quran text with appropriate font)
+    for each translation in verse.translations:
+        render translation.text as HTML (not textContent!)
+        attach click handlers for footnote <sup> elements
+
+Font Files & CDN
+CDN Base URL
+https://verses.quran.foundation/fonts/quran
+
+Font File Paths
+QCF V1 (604 page files)
+https://verses.quran.foundation/fonts/quran/hafs/v1/woff2/p{PAGE}.woff2
+https://verses.quran.foundation/fonts/quran/hafs/v1/woff/p{PAGE}.woff
+https://verses.quran.foundation/fonts/quran/hafs/v1/ttf/p{PAGE}.ttf
+
+Replace {PAGE} with 1-604.
+
+QCF V2 (604 page files)
+https://verses.quran.foundation/fonts/quran/hafs/v2/woff2/p{PAGE}.woff2
+https://verses.quran.foundation/fonts/quran/hafs/v2/woff/p{PAGE}.woff
+https://verses.quran.foundation/fonts/quran/hafs/v2/ttf/p{PAGE}.ttf
+
+QCF V4 Tajweed (604 page files)
+COLRv1 format (Chrome, Safari, Edge - supports CSS font-palette):
+
+https://verses.quran.foundation/fonts/quran/hafs/v4/colrv1/woff2/p{PAGE}.woff2
+https://verses.quran.foundation/fonts/quran/hafs/v4/colrv1/woff/p{PAGE}.woff
+https://verses.quran.foundation/fonts/quran/hafs/v4/colrv1/ttf/p{PAGE}.ttf
+
+OT-SVG format (Firefox dark mode - baked-in colors):
+
+https://verses.quran.foundation/fonts/quran/hafs/v4/ot-svg/light/woff2/p{PAGE}.woff2
+https://verses.quran.foundation/fonts/quran/hafs/v4/ot-svg/dark/woff2/p{PAGE}.woff2
+https://verses.quran.foundation/fonts/quran/hafs/v4/ot-svg/sepia/woff2/p{PAGE}.woff2
+
+Unicode Fonts (Single Files)
+QPC Hafs / Uthmanic Hafs:
+
+https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2
+https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.ttf
+
+IndoPak Nastaleeq:
+
+https://verses.quran.foundation/fonts/quran/hafs/nastaleeq/indopak/indopak-nastaleeq-waqf-lazim-v4.2.1.woff2
+https://verses.quran.foundation/fonts/quran/hafs/nastaleeq/indopak/indopak-nastaleeq-waqf-lazim-v4.2.1.woff
+https://verses.quran.foundation/fonts/quran/hafs/nastaleeq/indopak/indopak-nastaleeq-waqf-lazim-v4.2.1.ttf
+
+
+⚠️ Important: Do Not Store Files Locally
+We strongly recommend against downloading and storing font files, JSON data, or other assets locally in your application.
+
+Why?
+
+Font files and data are periodically updated with corrections, improvements, and new features
+Locally stored files will become outdated without your knowledge
+You may end up serving incorrect or stale Quranic content to your users
+Best Practice: Always load fonts and data directly from the CDN at runtime. The CDN is fast, reliable, and ensures your users always receive the latest, most accurate content.
+
+Rendering QCF Fonts (V1, V2, V4)
+QCF fonts require special handling because each Mushaf page (1-604) has its own font file.
+
+Step 1: Fetch Verse Data
+Request code_v2 (or code_v1), text_qpc_hafs (for fallback), and page_number:
+
+const API_BASE = 'https://apis.quran.foundation/content/api/v4';
+
+async function fetchVerses(chapter, accessToken, clientId) {
+  const response = await fetch(
+    `${API_BASE}/verses/by_chapter/${chapter}?` +
+    `words=true&word_fields=code_v2,text_qpc_hafs&mushaf=1`,
+    {
+      headers: {
+        'x-auth-token': accessToken,
+        'x-client-id': clientId
       }
-    ]
-  },
-  {
-    "id": 11,
-    "source_id": 2804733,
-    "type": "footer",
-    "add_type": "link",
-    "title": "إصدارات مرشحة للطباعة",
-    "url": "https://islamhouse.com/ar/category/889549/showall/showall/1/",
-    "description": "إصدارات مجانية مرشحة للطباعة",
-    "full_description": "",
-    "default_locale": "ar",
-    "created_at": "2018-07-30 01:35:59",
-    "updated_at": "2018-07-30 01:35:59",
-    "order": null,
-    "enabled": 1,
-    "attachments": [
-      {
-        "order": 0,
-        "attachable_id": 11,
-        "filename": "fdla-aghlk-aljoal",
-        "name": "fdla-aghlk-aljoal",
-        "path": "data/ar/ih_poster/117x117/401305.gif",
-        "url": "data/ar/ih_poster/117x117/401305.gif",
-        "extension": "gif",
-        "mimetype": "image/gif",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      },
-      {
-        "order": 0,
-        "attachable_id": 11,
-        "filename": "syr-alnby-aalyh-alsla-oalslam-4",
-        "name": "syr-alnby-aalyh-alsla-oalslam-4",
-        "path": "data/ur/ih_videos/pic/pic_index/224880.jpg",
-        "url": "data/ur/ih_videos/pic/pic_index/224880.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      }
-    ]
-  },
-  {
-    "id": 12,
-    "source_id": 2823819,
-    "type": "footer",
-    "add_type": "link",
-    "title": "موسوعة ترجمات القرآن",
-    "url": "http://quranenc.com/",
-    "description": "موسوعة القرآن الكريم\r\nنحو توفير تفاسير وتراجم موثوقة لمعاني القرآن الكريم بلغات العالم",
-    "full_description": "",
-    "default_locale": "ar",
-    "created_at": "2018-07-30 01:35:59",
-    "updated_at": "2019-01-03 02:59:13",
-    "order": null,
-    "enabled": 1,
-    "attachments": [
-      {
-        "order": 0,
-        "attachable_id": 12,
-        "filename": "almjahr-balmaaasy",
-        "name": "almjahr-balmaaasy",
-        "path": "data/ar/ih_poster/117x117/401181.gif",
-        "url": "data/ar/ih_poster/117x117/401181.gif",
-        "extension": "gif",
-        "mimetype": "image/gif",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      },
-      {
-        "order": 0,
-        "attachable_id": 12,
-        "filename": "syr-alnby-aalyh-alsla-oalslam-3",
-        "name": "syr-alnby-aalyh-alsla-oalslam-3",
-        "path": "data/ur/ih_videos/pic/pic_index/224875.jpg",
-        "url": "data/ur/ih_videos/pic/pic_index/224875.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      }
-    ]
-  },
-  {
-    "id": 13,
-    "source_id": 2827362,
-    "type": "footer",
-    "add_type": "link",
-    "title": "تطبيقات IslamHouse",
-    "url": "https://islamhouse.com/apps/",
-    "description": "تصفح تطبيقات IsamHouse.com",
-    "full_description": "",
-    "default_locale": "ar",
-    "created_at": "2018-07-30 01:35:59",
-    "updated_at": "2018-07-30 01:35:59",
-    "order": null,
-    "enabled": 1,
-    "attachments": [
-      {
-        "order": 0,
-        "attachable_id": 13,
-        "filename": "hl-yhbk-allh",
-        "name": "hl-yhbk-allh",
-        "path": "data/pt/ih_videos/pic/pic_index/398760.jpg",
-        "url": "data/pt/ih_videos/pic/pic_index/398760.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      },
-      {
-        "order": 0,
-        "attachable_id": 13,
-        "filename": "syr-alnby-aalyh-alsla-oalslam-2",
-        "name": "syr-alnby-aalyh-alsla-oalslam-2",
-        "path": "data/ur/ih_videos/pic/pic_index/224871.jpg",
-        "url": "data/ur/ih_videos/pic/pic_index/224871.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      }
-    ]
-  },
-  {
-    "id": 14,
-    "source_id": 2827372,
-    "type": "footer",
-    "add_type": "link",
-    "title": "موسوعة الأحاديث المترجمة",
-    "url": "https://hadeethenc.com/",
-    "description": "مشروع يهدف لتوفير شروحات مبسطة وترجمات واضحة للأحاديث النبوية الصحيحة.",
-    "full_description": "",
-    "default_locale": "ar",
-    "created_at": "2018-07-30 01:35:59",
-    "updated_at": "2019-01-03 02:58:36",
-    "order": null,
-    "enabled": 1,
-    "attachments": [
-      {
-        "order": 0,
-        "attachable_id": 14,
-        "filename": "alhjr-alnboy",
-        "name": "alhjr-alnboy",
-        "path": "data/pt/ih_videos/pic/pic_index/398758.jpg",
-        "url": "data/pt/ih_videos/pic/pic_index/398758.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      },
-      {
-        "order": 0,
-        "attachable_id": 14,
-        "filename": "syr-alnby-aalyh-alsla-oalslam-1",
-        "name": "syr-alnby-aalyh-alsla-oalslam-1",
-        "path": "data/ur/ih_videos/pic/pic_index/224869.jpg",
-        "url": "data/ur/ih_videos/pic/pic_index/224869.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      }
-    ]
-  },
-  {
-    "id": 50,
-    "source_id": 0,
-    "type": "",
-    "add_type": "",
-    "title": "موسوعة المصطلحات المترجمة",
-    "url": "https://terminologyenc.com/",
-    "description": "",
-    "full_description": null,
-    "default_locale": "ar",
-    "created_at": "2019-01-01 22:08:11",
-    "updated_at": "2019-01-03 03:00:11",
-    "order": null,
-    "enabled": 1,
-    "attachments": []
-  },
-  {
-    "id": 51,
-    "source_id": 0,
-    "type": "",
-    "add_type": "",
-    "title": "تنزيل جميع العناوين (Excel)",
-    "url": "https://islamhouse.com/ar/download-excel/section/showall/showall/",
-    "description": "",
-    "full_description": null,
-    "default_locale": "ar",
-    "created_at": "2019-01-03 03:03:38",
-    "updated_at": "2019-01-03 03:03:38",
-    "order": null,
-    "enabled": 1,
-    "attachments": []
-  },
-  {
-    "id": 3,
-    "source_id": 19962,
-    "type": "footer",
-    "add_type": "link",
-    "title": "من نحن؟",
-    "url": "https://d1.islamhouse.com/data/ar/ih_other/about.html",
-    "description": "",
-    "full_description": "",
-    "default_locale": "ar",
-    "created_at": "2018-07-30 01:35:59",
-    "updated_at": "2021-07-07 11:09:24",
-    "order": 3,
-    "enabled": 1,
-    "attachments": [
-      {
-        "order": 0,
-        "attachable_id": 3,
-        "filename": "lbs-alkhatm-oetal-alshaar",
-        "name": "lbs-alkhatm-oetal-alshaar",
-        "path": "data/ar/ih_poster/117x117/401477.gif",
-        "url": "data/ar/ih_poster/117x117/401477.gif",
-        "extension": "gif",
-        "mimetype": "image/gif",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      },
-      {
-        "order": 0,
-        "attachable_id": 3,
-        "filename": "syr-alnby-aalyh-alsla-oalslam-12",
-        "name": "syr-alnby-aalyh-alsla-oalslam-12",
-        "path": "data/ur/ih_videos/pic/pic_index/224901.jpg",
-        "url": "data/ur/ih_videos/pic/pic_index/224901.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      }
-    ]
-  },
-  {
-    "id": 5,
-    "source_id": 318389,
-    "type": "footer",
-    "add_type": "link",
-    "title": "إخلاء المسئولية",
-    "url": "https://d1.islamhouse.com/html/disclaimer.htm",
-    "description": "إخلاء المسئولية",
-    "full_description": "",
-    "default_locale": "ar",
-    "created_at": "2018-07-30 01:35:59",
-    "updated_at": "2019-01-24 04:41:34",
-    "order": 4,
-    "enabled": 1,
-    "attachments": [
-      {
-        "order": 0,
-        "attachable_id": 5,
-        "filename": "hflat-alaaaras",
-        "name": "hflat-alaaaras",
-        "path": "data/ar/ih_poster/117x117/401472.gif",
-        "url": "data/ar/ih_poster/117x117/401472.gif",
-        "extension": "gif",
-        "mimetype": "image/gif",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      },
-      {
-        "order": 0,
-        "attachable_id": 5,
-        "filename": "syr-alnby-aalyh-alsla-oalslam-10",
-        "name": "syr-alnby-aalyh-alsla-oalslam-10",
-        "path": "data/ur/ih_videos/pic/pic_index/224897.jpg",
-        "url": "data/ur/ih_videos/pic/pic_index/224897.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      }
-    ]
-  },
-  {
-    "id": 2,
-    "source_id": 13484,
-    "type": "footer",
-    "add_type": "link",
-    "title": "سياسة الخصوصية",
-    "url": "https://d1.islamhouse.com/html/policy.htm",
-    "description": "سياسة الخصوصية",
-    "full_description": "",
-    "default_locale": "ar",
-    "created_at": "2018-07-30 01:35:59",
-    "updated_at": "2019-01-24 04:54:54",
-    "order": 5,
-    "enabled": 1,
-    "attachments": [
-      {
-        "order": 0,
-        "attachable_id": 2,
-        "filename": "mhlat-tbyaa-aldkhan",
-        "name": "mhlat-tbyaa-aldkhan",
-        "path": "data/ar/ih_poster/117x117/401478.gif",
-        "url": "data/ar/ih_poster/117x117/401478.gif",
-        "extension": "gif",
-        "mimetype": "image/gif",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      },
-      {
-        "order": 0,
-        "attachable_id": 2,
-        "filename": "syr-alnby-aalyh-alsla-oalslam-13",
-        "name": "syr-alnby-aalyh-alsla-oalslam-13",
-        "path": "data/ur/ih_videos/pic/pic_index/224903.jpg",
-        "url": "data/ur/ih_videos/pic/pic_index/224903.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      }
-    ]
-  },
-  {
-    "id": 48,
-    "source_id": 2823819,
-    "type": "footer",
-    "add_type": "link",
-    "title": "مقالات إسلامية",
-    "url": "https://islamhouse.com/read/",
-    "description": "قارئ إسلام هاوس",
-    "full_description": "",
-    "default_locale": "ar",
-    "created_at": "2018-11-16 02:35:59",
-    "updated_at": "2021-07-07 11:20:48",
-    "order": 8,
-    "enabled": 1,
-    "attachments": [
-      {
-        "order": 0,
-        "attachable_id": 48,
-        "filename": "hfth-alokt-oahmyth",
-        "name": "hfth-alokt-oahmyth",
-        "path": "data/ar/ih_videos/pic/pic_index/396482.jpg",
-        "url": "data/ar/ih_videos/pic/pic_index/396482.jpg",
-        "extension": "jpg",
-        "mimetype": "image/jpeg",
-        "filesize": "",
-        "description": "",
-        "language": "ar"
-      }
-    ]
+    }
+  );
+  const data = await response.json();
+  return data.verses;
+}
+
+Step 2: Load Page Fonts Dynamically
+const loadedFonts = new Set();
+
+async function loadFontForPage(pageNumber, version = 'v2') {
+  const fontName = `p${pageNumber}-${version}`;
+
+  if (loadedFonts.has(fontName)) {
+    return fontName; // Already loaded
   }
-]
-GET
-Social links
-https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/languages/get-social/ar/json
-Request:
 
-Syntax: {endpoint}/{key}/languages/get-social/{lang}/{format}
+  const fontUrl = `https://verses.quran.foundation/fonts/quran/hafs/${version}/woff2/p${pageNumber}.woff2`;
 
-https://api3.islamhouse.com/v3/paV29H2gm56kvLPy/languages/get-social/ar/json
+  const fontFace = new FontFace(fontName, `url('${fontUrl}')`);
+  fontFace.display = 'block';
 
-Describe the request
-Describes site social media links.
-Describe the response:
-Collection of links.
+  await fontFace.load();
+  document.fonts.add(fontFace);
+  loadedFonts.add(fontName);
+
+  return fontName;
+}
+
+
+Step 3: Render Words with Correct Font
+⚠️ Critical: QCF glyph codes contain special Unicode characters that must be rendered using innerHTML (or React's dangerouslySetInnerHTML), not textContent. Using textContent will display incorrect characters.
+
+async function renderVerse(verse, container) {
+  // Get unique page numbers from words
+  const pageNumbers = [...new Set(verse.words.map(w => w.page_number))];
+
+  // Load all required fonts
+  await Promise.all(pageNumbers.map(page => loadFontForPage(page)));
+
+  // Render each word
+  verse.words.forEach(word => {
+    const span = document.createElement('span');
+
+    // Handle verse end markers with Unicode font
+    if (word.char_type_name === 'end') {
+      span.style.fontFamily = 'UthmanicHafs, serif';
+      span.textContent = word.text_qpc_hafs;
+    } else {
+      span.style.fontFamily = `p${word.page_number}-v2`;
+      span.innerHTML = word.code_v2; // MUST use innerHTML for QCF codes!
+    }
+
+    container.appendChild(span);
+    container.appendChild(document.createTextNode(' ')); // Word separator
+  });
+}
+
+Step 4: Implement Fallback
+Show readable text while fonts load:
+
+function renderWordWithFallback(word, fontLoaded) {
+  const span = document.createElement('span');
+
+  if (fontLoaded) {
+    span.style.fontFamily = `p${word.page_number}-v2`;
+    span.innerHTML = word.code_v2;
+  } else {
+    span.style.fontFamily = 'UthmanicHafs, serif';
+    span.textContent = word.text_qpc_hafs; // Fallback text
+  }
+
+  return span;
+}
+
+Complete QCF Implementation
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>Quran QCF V2 Rendering</title>
+  <style>
+    @font-face {
+      font-family: 'UthmanicHafs';
+      src: url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2') format('woff2');
+      font-display: swap;
+    }
+
+    .verse-container {
+      font-size: 32px;
+      line-height: 2.5;
+      direction: rtl;
+      text-align: right;
+    }
+
+    .word {
+      display: inline-block;
+    }
+
+    .word.loading {
+      font-family: 'UthmanicHafs', serif;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div id="quran" class="verse-container"></div>
+
+  <script>
+    const loadedFonts = new Set();
+    const CDN_BASE = 'https://verses.quran.foundation';
+
+    async function loadPageFont(pageNumber) {
+      const fontName = `p${pageNumber}-v2`;
+      if (loadedFonts.has(fontName)) return fontName;
+
+      const fontFace = new FontFace(
+        fontName,
+        `url('${CDN_BASE}/fonts/quran/hafs/v2/woff2/p${pageNumber}.woff2')`
+      );
+      fontFace.display = 'block';
+
+      try {
+        await fontFace.load();
+        document.fonts.add(fontFace);
+        loadedFonts.add(fontName);
+      } catch (error) {
+        console.error(`Failed to load font for page ${pageNumber}:`, error);
+      }
+
+      return fontName;
+    }
+
+    // NOTE: In production, obtain these from your server
+    const API_BASE = 'https://apis.quran.foundation/content/api/v4';
+    const accessToken = 'YOUR_ACCESS_TOKEN';
+    const clientId = 'YOUR_CLIENT_ID';
+
+    async function fetchAndRenderChapter(chapterNumber) {
+      const container = document.getElementById('quran');
+      container.innerHTML = 'Loading...';
+
+      // Fetch verses (with authentication)
+      const response = await fetch(
+        `${API_BASE}/verses/by_chapter/${chapterNumber}?` +
+        `words=true&word_fields=code_v2,text_qpc_hafs&mushaf=1`,
+        {
+          headers: {
+            'x-auth-token': accessToken,
+            'x-client-id': clientId
+          }
+        }
+      );
+      const data = await response.json();
+
+      container.innerHTML = '';
+
+      // Get all unique pages
+      const allPageNumbers = new Set();
+      data.verses.forEach(verse => {
+        verse.words.forEach(word => allPageNumbers.add(word.page_number));
+      });
+
+      // Start loading fonts in parallel
+      const fontPromises = [...allPageNumbers].map(loadPageFont);
+
+      // Render immediately with fallback
+      data.verses.forEach(verse => {
+        const verseDiv = document.createElement('div');
+        verseDiv.className = 'verse';
+
+        verse.words.forEach(word => {
+          const span = document.createElement('span');
+          span.className = 'word loading';
+          span.dataset.page = word.page_number;
+          span.dataset.codeV2 = word.code_v2;
+          span.textContent = word.text_qpc_hafs; // Show fallback first
+          verseDiv.appendChild(span);
+          verseDiv.appendChild(document.createTextNode(' '));
+        });
+
+        container.appendChild(verseDiv);
+      });
+
+      // When fonts load, update to QCF rendering
+      await Promise.all(fontPromises);
+
+      document.querySelectorAll('.word.loading').forEach(span => {
+        span.classList.remove('loading');
+        span.style.fontFamily = `p${span.dataset.page}-v2`;
+        span.innerHTML = span.dataset.codeV2;
+      });
+    }
+
+    // Load Surah Al-Fatiha
+    fetchAndRenderChapter(1);
+  </script>
+</body>
+</html>
+
+
+Rendering Unicode Fonts
+Unicode fonts are simpler - one font file works for all text.
+
+QPC Hafs Implementation
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>Quran Unicode Rendering</title>
+  <style>
+    @font-face {
+      font-family: 'UthmanicHafs';
+      src: url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2') format('woff2'),
+           url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.ttf') format('truetype');
+      font-display: swap;
+    }
+
+    .quran-text {
+      font-family: 'UthmanicHafs', 'Traditional Arabic', 'Scheherazade', serif;
+      font-size: 28px;
+      line-height: 2;
+      direction: rtl;
+      text-align: right;
+    }
+
+    .verse-number {
+      font-family: sans-serif;
+      font-size: 14px;
+      color: #666;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="quran" class="quran-text"></div>
+
+  <script>
+    // NOTE: In production, obtain these from your server
+    const API_BASE = 'https://apis.quran.foundation/content/api/v4';
+    const accessToken = 'YOUR_ACCESS_TOKEN';
+    const clientId = 'YOUR_CLIENT_ID';
+
+    async function fetchAndRender(chapterNumber) {
+      const container = document.getElementById('quran');
+
+      const response = await fetch(
+        `${API_BASE}/verses/by_chapter/${chapterNumber}?` +
+        `words=true&word_fields=text_qpc_hafs`,
+        {
+          headers: {
+            'x-auth-token': accessToken,
+            'x-client-id': clientId
+          }
+        }
+      );
+      const data = await response.json();
+
+      data.verses.forEach(verse => {
+        const div = document.createElement('div');
+
+        // Combine words into verse text
+        const text = verse.words.map(w => w.text_qpc_hafs).join(' ');
+        div.textContent = text;
+
+        // Add verse number
+        const verseNum = document.createElement('span');
+        verseNum.className = 'verse-number';
+        verseNum.textContent = `(${verse.verse_key})`;
+        div.appendChild(verseNum);
+
+        container.appendChild(div);
+      });
+    }
+
+    fetchAndRender(1);
+  </script>
+</body>
+</html>
+
+
+IndoPak Nastaleeq Implementation
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>Quran IndoPak Rendering</title>
+  <style>
+    @font-face {
+      font-family: 'IndoPak';
+      src: url('https://verses.quran.foundation/fonts/quran/hafs/nastaleeq/indopak/indopak-nastaleeq-waqf-lazim-v4.2.1.woff2') format('woff2'),
+           url('https://verses.quran.foundation/fonts/quran/hafs/nastaleeq/indopak/indopak-nastaleeq-waqf-lazim-v4.2.1.woff') format('woff');
+      font-display: swap;
+    }
+
+    .quran-text {
+      font-family: 'IndoPak', 'Noto Nastaliq Urdu', serif;
+      font-size: 32px;
+      line-height: 2.5;
+      direction: rtl;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <div id="quran" class="quran-text"></div>
+
+  <script>
+    // NOTE: In production, obtain these from your server
+    const API_BASE = 'https://apis.quran.foundation/content/api/v4';
+    const accessToken = 'YOUR_ACCESS_TOKEN';
+    const clientId = 'YOUR_CLIENT_ID';
+
+    async function fetchAndRender(chapterNumber) {
+      const container = document.getElementById('quran');
+
+      // Use mushaf=3 for IndoPak
+      const response = await fetch(
+        `${API_BASE}/verses/by_chapter/${chapterNumber}?` +
+        `words=true&word_fields=text_indopak&mushaf=3`,
+        {
+          headers: {
+            'x-auth-token': accessToken,
+            'x-client-id': clientId
+          }
+        }
+      );
+      const data = await response.json();
+
+      data.verses.forEach(verse => {
+        const div = document.createElement('div');
+        const text = verse.words.map(w => w.text_indopak).join(' ');
+        div.textContent = text;
+        container.appendChild(div);
+      });
+    }
+
+    fetchAndRender(1);
+  </script>
+</body>
+</html>
+
+
+Complete Implementation Examples
+React Implementation (QCF V2)
+import React, { useState, useEffect, useCallback } from 'react';
+
+const CDN_BASE = 'https://verses.quran.foundation';
+const loadedFonts = new Set();
+
+// Hook to load QCF fonts
+function useQcfFontLoader(verses) {
+  const [fontsLoaded, setFontsLoaded] = useState(new Set());
+
+  useEffect(() => {
+    if (!verses?.length) return;
+
+    const pageNumbers = new Set();
+    verses.forEach(verse => {
+      verse.words.forEach(word => {
+        if (word.page_number) pageNumbers.add(word.page_number);
+      });
+    });
+
+    const loadFonts = async () => {
+      const newlyLoaded = new Set(fontsLoaded);
+
+      await Promise.all([...pageNumbers].map(async (page) => {
+        const fontName = `p${page}-v2`;
+        if (loadedFonts.has(fontName)) {
+          newlyLoaded.add(page);
+          return;
+        }
+
+        try {
+          const fontFace = new FontFace(
+            fontName,
+            `url('${CDN_BASE}/fonts/quran/hafs/v2/woff2/p${page}.woff2')`
+          );
+          fontFace.display = 'block';
+          await fontFace.load();
+          document.fonts.add(fontFace);
+          loadedFonts.add(fontName);
+          newlyLoaded.add(page);
+        } catch (error) {
+          console.error(`Failed to load font for page ${page}:`, error);
+        }
+      }));
+
+      setFontsLoaded(newlyLoaded);
+    };
+
+    loadFonts();
+  }, [verses]);
+
+  return fontsLoaded;
+}
+
+// Word component
+function QuranWord({ word, isFontLoaded }) {
+  if (isFontLoaded) {
+    return (
+      <span
+        style={{ fontFamily: `p${word.page_number}-v2` }}
+        dangerouslySetInnerHTML={{ __html: word.code_v2 }}
+      />
+    );
+  }
+
+  // Fallback while loading
+  return (
+    <span style={{ fontFamily: 'UthmanicHafs, serif', opacity: 0.8 }}>
+      {word.text_qpc_hafs}
+    </span>
+  );
+}
+
+// Verse component
+function Verse({ verse, loadedPages }) {
+  return (
+    <div style={{
+      direction: 'rtl',
+      textAlign: 'right',
+      fontSize: '28px',
+      lineHeight: 2.5,
+      marginBottom: '16px'
+    }}>
+      {verse.words.map((word, index) => (
+        <React.Fragment key={word.id || index}>
+          <QuranWord
+            word={word}
+            isFontLoaded={loadedPages.has(word.page_number)}
+          />
+          {' '}
+        </React.Fragment>
+      ))}
+      <span style={{ fontSize: '14px', color: '#666' }}>
+        ({verse.verse_key})
+      </span>
+    </div>
+  );
+}
+
+// API configuration (get tokens from your server in production)
+const API_BASE = 'https://apis.quran.foundation/content/api/v4';
+
+// Main component
+function QuranChapter({ chapterNumber, accessToken, clientId }) {
+  const [verses, setVerses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const loadedPages = useQcfFontLoader(verses);
+
+  useEffect(() => {
+    async function fetchVerses() {
+      setLoading(true);
+      try {
+        const response = await fetch(
+          `${API_BASE}/verses/by_chapter/${chapterNumber}?` +
+          `words=true&word_fields=code_v2,text_qpc_hafs&mushaf=1`,
+          {
+            headers: {
+              'x-auth-token': accessToken,
+              'x-client-id': clientId
+            }
+          }
+        );
+        const data = await response.json();
+        setVerses(data.verses);
+      } catch (error) {
+        console.error('Failed to fetch verses:', error);
+      }
+      setLoading(false);
+    }
+
+    fetchVerses();
+  }, [chapterNumber, accessToken, clientId]);
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <div>
+      {verses.map(verse => (
+        <Verse
+          key={verse.id}
+          verse={verse}
+          loadedPages={loadedPages}
+        />
+      ))}
+    </div>
+  );
+}
+
+export default QuranChapter;
+
+Vue 3 Implementation
+<template>
+  <div class="quran-container">
+    <div v-if="loading">Loading...</div>
+    <div v-else>
+      <div
+        v-for="verse in verses"
+        :key="verse.id"
+        class="verse"
+      >
+        <span
+          v-for="(word, index) in verse.words"
+          :key="word.id || index"
+          class="word"
+          :style="getWordStyle(word)"
+          v-html="getWordText(word)"
+        />
+        <span class="verse-number">({{ verse.verse_key }})</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, watch } from 'vue';
+
+const props = defineProps({
+  chapterNumber: { type: Number, required: true }
+});
+
+const CDN_BASE = 'https://verses.quran.foundation';
+const loadedFonts = new Set();
+const loadedPages = ref(new Set());
+const verses = ref([]);
+const loading = ref(true);
+
+async function loadPageFont(pageNumber) {
+  const fontName = `p${pageNumber}-v2`;
+  if (loadedFonts.has(fontName)) return;
+
+  try {
+    const fontFace = new FontFace(
+      fontName,
+      `url('${CDN_BASE}/fonts/quran/hafs/v2/woff2/p${pageNumber}.woff2')`
+    );
+    fontFace.display = 'block';
+    await fontFace.load();
+    document.fonts.add(fontFace);
+    loadedFonts.add(fontName);
+    loadedPages.value = new Set([...loadedPages.value, pageNumber]);
+  } catch (error) {
+    console.error(`Failed to load font for page ${pageNumber}:`, error);
+  }
+}
+
+// API configuration (get tokens from your server in production)
+const API_BASE = 'https://apis.quran.foundation/content/api/v4';
+
+async function fetchVerses() {
+  loading.value = true;
+  try {
+    const response = await fetch(
+      `${API_BASE}/verses/by_chapter/${props.chapterNumber}?` +
+      `words=true&word_fields=code_v2,text_qpc_hafs&mushaf=1`,
+      {
+        headers: {
+          'x-auth-token': props.accessToken,
+          'x-client-id': props.clientId
+        }
+      }
+    );
+    const data = await response.json();
+    verses.value = data.verses;
+
+    // Load fonts for all pages
+    const pageNumbers = new Set();
+    data.verses.forEach(verse => {
+      verse.words.forEach(word => pageNumbers.add(word.page_number));
+    });
+    await Promise.all([...pageNumbers].map(loadPageFont));
+  } catch (error) {
+    console.error('Failed to fetch verses:', error);
+  }
+  loading.value = false;
+}
+
+function getWordStyle(word) {
+  if (loadedPages.value.has(word.page_number)) {
+    return { fontFamily: `p${word.page_number}-v2` };
+  }
+  return { fontFamily: 'UthmanicHafs, serif', opacity: 0.8 };
+}
+
+function getWordText(word) {
+  if (loadedPages.value.has(word.page_number)) {
+    return word.code_v2;
+  }
+  return word.text_qpc_hafs;
+}
+
+onMounted(fetchVerses);
+watch(() => props.chapterNumber, fetchVerses);
+</script>
+
+<style scoped>
+@font-face {
+  font-family: 'UthmanicHafs';
+  src: url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2') format('woff2');
+  font-display: swap;
+}
+
+.quran-container {
+  direction: rtl;
+  text-align: right;
+}
+
+.verse {
+  font-size: 28px;
+  line-height: 2.5;
+  margin-bottom: 16px;
+}
+
+.word {
+  display: inline;
+}
+
+.verse-number {
+  font-family: sans-serif;
+  font-size: 14px;
+  color: #666;
+  margin-right: 8px;
+}
+</style>
+
+
+Flutter/Dart Implementation
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+class QuranVerse {
+  final String verseKey;
+  final List<QuranWord> words;
+
+  QuranVerse({required this.verseKey, required this.words});
+
+  factory QuranVerse.fromJson(Map<String, dynamic> json) {
+    return QuranVerse(
+      verseKey: json['verse_key'],
+      words: (json['words'] as List)
+          .map((w) => QuranWord.fromJson(w))
+          .toList(),
+    );
+  }
+}
+
+class QuranWord {
+  final String? textUthmani;
+  final String? textQpcHafs;
+
+  QuranWord({this.textUthmani, this.textQpcHafs});
+
+  factory QuranWord.fromJson(Map<String, dynamic> json) {
+    return QuranWord(
+      textUthmani: json['text_uthmani'],
+      textQpcHafs: json['text_qpc_hafs'],
+    );
+  }
+}
+
+class QuranChapterWidget extends StatefulWidget {
+  final int chapterNumber;
+  final String accessToken;  // Pass from your auth service
+  final String clientId;     // Pass from your auth service
+
+  const QuranChapterWidget({
+    Key? key,
+    required this.chapterNumber,
+    required this.accessToken,
+    required this.clientId,
+  }) : super(key: key);
+
+  @override
+  State<QuranChapterWidget> createState() => _QuranChapterWidgetState();
+}
+
+class _QuranChapterWidgetState extends State<QuranChapterWidget> {
+  static const String apiBase = 'https://apis.quran.foundation/content/api/v4';
+  List<QuranVerse> verses = [];
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    fetchVerses();
+  }
+
+  Future<void> fetchVerses() async {
+    final response = await http.get(
+      Uri.parse(
+        '$apiBase/verses/by_chapter/${widget.chapterNumber}?'
+        'words=true&word_fields=text_uthmani,text_qpc_hafs'
+      ),
+      headers: {
+        'x-auth-token': widget.accessToken,
+        'x-client-id': widget.clientId,
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      setState(() {
+        verses = (data['verses'] as List)
+            .map((v) => QuranVerse.fromJson(v))
+            .toList();
+        loading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return ListView.builder(
+      itemCount: verses.length,
+      itemBuilder: (context, index) {
+        final verse = verses[index];
+        final text = verse.words
+            .map((w) => w.textQpcHafs ?? w.textUthmani ?? '')
+            .join(' ');
+
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: RichText(
+              textAlign: TextAlign.right,
+              text: TextSpan(
+                children: [
+                  TextSpan(
+                    text: text,
+                    style: const TextStyle(
+                      fontFamily: 'UthmanicHafs', // Add to pubspec.yaml
+                      fontSize: 24,
+                      height: 2,
+                      color: Colors.black,
+                    ),
+                  ),
+                  TextSpan(
+                    text: ' (${verse.verseKey})',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+Tajweed Color Themes
+Tajweed V4 fonts include colored glyphs for Tajweed rules. You need to handle themes.
+
+Browser Support
+Browser	Format	Theme Method
+Chrome, Edge, Safari	COLRv1	CSSfont-palette
+Firefox	OT-SVG	Separate font files per theme
+COLRv1 with CSS Font Palette
+/* Define palette overrides for each theme */
+@font-palette-values --Light {
+  font-family: 'p1-v4';
+  base-palette: 0;
+}
+
+@font-palette-values --Dark {
+  font-family: 'p1-v4';
+  base-palette: 1;
+}
+
+@font-palette-values --Sepia {
+  font-family: 'p1-v4';
+  base-palette: 2;
+}
+
+/* Apply theme */
+.quran-text.light {
+  font-palette: --Light;
+}
+
+.quran-text.dark {
+  font-palette: --Dark;
+  background: #1a1a1a;
+}
+
+.quran-text.sepia {
+  font-palette: --Sepia;
+  background: #f4ecd8;
+}
+
+Firefox Dark Mode Handling
+function getTajweedFontPath(pageNumber, theme) {
+  const isFirefox = navigator.userAgent.includes('Firefox');
+
+  if (isFirefox && theme === 'dark') {
+    // Use OT-SVG format with baked-in dark colors
+    return `https://verses.quran.foundation/fonts/quran/hafs/v4/ot-svg/dark/woff2/p${pageNumber}.woff2`;
+  }
+
+  // Use COLRv1 for other cases
+  return `https://verses.quran.foundation/fonts/quran/hafs/v4/colrv1/woff2/p${pageNumber}.woff2`;
+}
+
+
+Complete Tajweed Example
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>Quran Tajweed V4</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      transition: background 0.3s;
+    }
+
+    body.dark {
+      background: #1a1a1a;
+      color: #fff;
+    }
+
+    body.sepia {
+      background: #f4ecd8;
+    }
+
+    .controls {
+      margin-bottom: 20px;
+    }
+
+    .verse-container {
+      font-size: 32px;
+      line-height: 2.5;
+      direction: rtl;
+      text-align: right;
+    }
+
+    /* Font palettes will be generated dynamically */
+  </style>
+</head>
+<body class="light">
+  <div class="controls">
+    <button onclick="setTheme('light')">Light</button>
+    <button onclick="setTheme('dark')">Dark</button>
+    <button onclick="setTheme('sepia')">Sepia</button>
+  </div>
+
+  <div id="quran" class="verse-container"></div>
+
+  <script>
+    const CDN_BASE = 'https://verses.quran.foundation';
+    const loadedFonts = new Map(); // page -> fontName
+    let currentTheme = 'light';
+
+    function isFirefox() {
+      return navigator.userAgent.includes('Firefox');
+    }
+
+    function getFontPath(page, theme) {
+      if (isFirefox() && theme === 'dark') {
+        return `${CDN_BASE}/fonts/quran/hafs/v4/ot-svg/dark/woff2/p${page}.woff2`;
+      }
+      return `${CDN_BASE}/fonts/quran/hafs/v4/colrv1/woff2/p${page}.woff2`;
+    }
+
+    async function loadTajweedFont(page, theme) {
+      const fontName = `p${page}-v4`;
+      const cacheKey = `${fontName}-${theme}`;
+
+      if (loadedFonts.has(cacheKey)) return fontName;
+
+      const fontFace = new FontFace(fontName, `url('${getFontPath(page, theme)}')`);
+      fontFace.display = 'block';
+
+      await fontFace.load();
+      document.fonts.add(fontFace);
+      loadedFonts.set(cacheKey, fontName);
+
+      // Add font palette CSS
+      addFontPalette(fontName);
+
+      return fontName;
+    }
+
+    function addFontPalette(fontFamily) {
+      const style = document.createElement('style');
+      style.textContent = `
+        @font-palette-values --Light-${fontFamily} {
+          font-family: '${fontFamily}';
+          base-palette: 0;
+        }
+        @font-palette-values --Dark-${fontFamily} {
+          font-family: '${fontFamily}';
+          base-palette: 1;
+        }
+        @font-palette-values --Sepia-${fontFamily} {
+          font-family: '${fontFamily}';
+          base-palette: 2;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    function setTheme(theme) {
+      currentTheme = theme;
+      document.body.className = theme;
+
+      // Update font palettes on existing words
+      document.querySelectorAll('.word').forEach(el => {
+        const fontFamily = el.dataset.fontFamily;
+        if (fontFamily) {
+          el.style.fontPalette = `--${theme.charAt(0).toUpperCase() + theme.slice(1)}-${fontFamily}`;
+        }
+      });
+
+      // For Firefox dark mode, reload fonts
+      if (isFirefox() && theme === 'dark') {
+        reloadFontsForTheme(theme);
+      }
+    }
+
+    async function reloadFontsForTheme(theme) {
+      const words = document.querySelectorAll('.word');
+      const pages = new Set();
+      words.forEach(w => pages.add(parseInt(w.dataset.page)));
+
+      await Promise.all([...pages].map(p => loadTajweedFont(p, theme)));
+    }
+
+    // NOTE: In production, obtain these from your server
+    const API_BASE = 'https://apis.quran.foundation/content/api/v4';
+    const accessToken = 'YOUR_ACCESS_TOKEN';
+    const clientId = 'YOUR_CLIENT_ID';
+
+    async function fetchAndRender(chapter) {
+      const container = document.getElementById('quran');
+      container.innerHTML = 'Loading...';
+
+      const response = await fetch(
+        `${API_BASE}/verses/by_chapter/${chapter}?` +
+        `words=true&word_fields=code_v2,text_qpc_hafs&mushaf=19`,
+        {
+          headers: {
+            'x-auth-token': accessToken,
+            'x-client-id': clientId
+          }
+        }
+      );
+      const data = await response.json();
+
+      const pages = new Set();
+      data.verses.forEach(v => v.words.forEach(w => pages.add(w.page_number)));
+
+      await Promise.all([...pages].map(p => loadTajweedFont(p, currentTheme)));
+
+      container.innerHTML = '';
+
+      data.verses.forEach(verse => {
+        const div = document.createElement('div');
+
+        verse.words.forEach(word => {
+          const span = document.createElement('span');
+          span.className = 'word';
+          span.dataset.page = word.page_number;
+          span.dataset.fontFamily = `p${word.page_number}-v4`;
+          span.style.fontFamily = `p${word.page_number}-v4`;
+          span.style.fontPalette = `--${currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1)}-p${word.page_number}-v4`;
+          span.innerHTML = word.code_v2;
+          div.appendChild(span);
+          div.appendChild(document.createTextNode(' '));
+        });
+
+        container.appendChild(div);
+      });
+    }
+
+    fetchAndRender(1);
+  </script>
+</body>
+</html>
+
+
+Font Scaling
+When implementing font size controls in your application, consider these guidelines based on how Quran.com handles font scaling.
+
+Recommended Scale System
+Use a 10-level scale for Quran text size:
+
+Level	Description	Suggested Use Case
+1-3	Small sizes	Mobile-optimized, compact reading
+3	Default	Balanced default for most users
+4-5	Medium sizes	Comfortable extended reading
+6-10	Large sizes	Accessibility, presentations
+Responsive Font Sizing
+Use viewport-relative units for responsive scaling:
+
+/* Mobile: use viewport width */
+.quran-text-scale-3 {
+  font-size: 5.3vw;
+}
+
+/* Tablet/Desktop: use viewport height */
+@media (min-width: 768px) {
+  .quran-text-scale-3 {
+    font-size: 3.2vh;
+  }
+}
+
+Font-Specific Scale Values
+Different fonts require different scale values for consistent visual appearance:
+
+QCF V2 (code_v2) recommended sizes:
+
+Scale	Mobile	Tablet/Desktop
+1	4vw	2.9vh
+3	5.3vw	3.2vh
+5	10vw	3.7vh
+10	15vw	11vh
+QPC Hafs (Unicode) recommended sizes:
+
+Scale	Mobile	Tablet/Desktop
+1	4vw	3.2vh
+3	5vw	4vh
+5	11vw	4.4vh
+10	16vw	10.27vh
+Layout Behavior Changes
+When implementing a Reading View that aims to replicate physical Mushaf pages, consider these layout behaviors:
+
+Maintaining Mushaf Page Boundaries
+At smaller font scales (1-3), you can maintain physical Mushaf page boundaries:
+
+Each line matches the same boundaries as the physical Mushaf
+Page breaks align with printed Mushaf pages
+Words don't overflow their designated line positions
+This creates an interleaved reading experience that closely mirrors reading from a physical Quran.
+
+Big Text Layout Mode
+At larger font scales (4+), it becomes impossible to maintain exact print fidelity. Consider switching to a relaxed layout:
+
+Aspect	Normal Layout (Scale 1-3)	Big Text Layout (Scale 4+)
+Line boundaries	Strictly maintained	Relaxed for readability
+Page fidelity	Matches physical Mushaf	May differ from print
+Word wrapping	Preserves Mushaf line breaks	Allows natural wrapping
+Primary goal	Authenticity	Accessibility
+Implementation tip: Track when users select large font sizes and adjust your layout constraints accordingly:
+
+const isBigTextLayout = fontScale > 3;
+
+if (isBigTextLayout) {
+  // Relax line width constraints
+  // Allow natural word wrapping
+  // Prioritize readability over print fidelity
+}
+
+Best Practices
+1. Always Use Fallback Fonts
+.quran-text {
+  font-family: 'UthmanicHafs', 'Traditional Arabic', 'Scheherazade New', serif;
+}
+
+2. Preload Critical Fonts
+<link rel="preload" href="https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2" as="font" type="font/woff2" crossorigin>
+
+
+3. Use font-display: swap
+@font-face {
+  font-family: 'UthmanicHafs';
+  src: url('...') format('woff2');
+  font-display: swap; /* Show fallback immediately, swap when loaded */
+}
+
+4. Load Fonts On-Demand
+Don't load all 604 QCF fonts upfront. Load only fonts for visible pages:
+
+// Good: Load only needed pages
+const visiblePages = getVisiblePageNumbers();
+await Promise.all(visiblePages.map(loadPageFont));
+
+// Bad: Load all fonts
+for (let i = 1; i <= 604; i++) {
+  await loadPageFont(i);
+}
+
+5. Cache Loaded Fonts
+const loadedFonts = new Set();
+
+async function loadFontForPage(page) {
+  const fontName = `p${page}-v2`;
+  if (loadedFonts.has(fontName)) return; // Already loaded
+
+  // Load font...
+  loadedFonts.add(fontName);
+}
+
+6. Handle RTL Properly
+<html lang="ar" dir="rtl">
+
+.quran-text {
+  direction: rtl;
+  text-align: right;
+  unicode-bidi: bidi-override;
+}
+
+7. Request Only Needed Fields
+// Good: Request only what you need
+const response = await fetch(url + '&word_fields=code_v2');
+
+// Bad: Request everything
+const response = await fetch(url + '&word_fields=code_v1,code_v2,text_uthmani,text_indopak,...');
+
+Troubleshooting
+Fonts Not Loading
+Symptom: Text appears in system Arabic font, not Quran font.
+
+Solutions:
+
+Check browser console for CORS errors
+Verify font URL is correct
+Check if FontFace API is supported
+Ensure font file exists at CDN path
+// Debug font loading
+const fontFace = new FontFace('test', `url('${fontUrl}')`);
+fontFace.load()
+  .then(() => console.log('Font loaded successfully'))
+  .catch(err => console.error('Font load failed:', err));
+
+QCF Glyphs Show as Squares
+Symptom: Text shows placeholder squares instead of Arabic.
+
+Solutions:
+
+Ensure correct font file is loaded for the page number
+Verify code_v2 field is being used (not text_qpc_hafs)
+Check font-family matches the loaded font name
+Wrong Mushaf Layout
+Symptom: Verse breaks or word order seems wrong.
+
+Solutions:
+
+Verify mushaf parameter matches font type
+For IndoPak, check 15 vs 16 lines setting
+Firefox V1 Mushaf Spacing Issues
+Symptom: Words in QCF V1 Mushaf appear too close together or overlap in Firefox.
+
+Cause: Firefox has a word-spacing bug with QCF V1 fonts at smaller font scales.
+
+Solution: Add extra spacing when using V1 Mushaf with font scale less than 6:
+
+/* Firefox V1 spacing fix */
+@-moz-document url-prefix() {
+  .qcf-v1-word {
+    /* Add extra space after each word at smaller scales */
+    margin-inline-end: 0.1em; /* Adjust as needed */
+  }
+}
+
+/* Or use word-spacing with a fallback */
+.qcf-v1-container {
+  word-spacing: 0.05em; /* Helps Firefox spacing */
+}
+
+// Detection approach
+const isFirefox = navigator.userAgent.includes('Firefox');
+const isV1Mushaf = mushafId === 2; // QCFV1
+const needsSpacingFix = isFirefox && isV1Mushaf && fontScale < 6;
+
+if (needsSpacingFix) {
+  // Add extra spacing between words
+  wordElement.style.marginInlineEnd = '0.1em';
+}
+
+Tajweed Colors Not Showing
+Symptom: Tajweed text is black instead of colored.
+
+Solutions:
+
+For non-Firefox: Check font-palette CSS is applied
+For Firefox dark mode: Use OT-SVG font files
+Verify V4 font files are loaded (not V2)

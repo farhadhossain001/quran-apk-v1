@@ -46,6 +46,8 @@ const defaultSettings: UserSettings = {
   theme: 'light',
   fontSize: 3,
   showArabic: true,
+  arabicFont: 'indopak',
+  readingMode: 'verseByVerse',
   showTranslation: true,
   showTransliteration: false,
   reciterId: 7, // Default Mishary Rashid Alafasy (ID 7 in Quran.com API)
@@ -68,34 +70,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Settings State
   const [settings, setSettings] = useState<UserSettings>(() => {
     try {
-        const stored = localStorage.getItem('quran_settings');
-        // Detect browser language if not stored
-        const browserLang = (typeof navigator !== 'undefined' && navigator.language.startsWith('bn')) ? 'bn' : 'en';
+      const stored = localStorage.getItem('quran_settings');
+      // Detect browser language if not stored
+      const browserLang = (typeof navigator !== 'undefined' && navigator.language.startsWith('bn')) ? 'bn' : 'en';
 
-        // Migration: merge defaults for new properties (like location, translation ids)
-        const parsed = stored ? JSON.parse(stored) : {};
-        
-        // Handle migration from old translationMode if selectedTranslationIds missing
-        let transIds = parsed.selectedTranslationIds;
-        if (!transIds && parsed.translationMode) {
-             if (parsed.translationMode === 'en') transIds = [20];
-             else if (parsed.translationMode === 'bn') transIds = [161];
-             else if (parsed.translationMode === 'both') transIds = [20, 161];
-        }
+      // Migration: merge defaults for new properties (like location, translation ids)
+      const parsed = stored ? JSON.parse(stored) : {};
 
-        // Ensure merged settings have all required fields even if storage is partial or old
-        return { 
-            ...defaultSettings, 
-            appLanguage: browserLang, // Set default based on browser first
-            ...parsed, // Override with stored settings if they exist
-            selectedTranslationIds: transIds || defaultSettings.selectedTranslationIds,
-            location: (parsed.location && typeof parsed.location === 'object') ? parsed.location : defaultSettings.location,
-            hijriAdjustment: typeof parsed.hijriAdjustment === 'number' ? parsed.hijriAdjustment : defaultSettings.hijriAdjustment
-        };
+      // Handle migration from old translationMode if selectedTranslationIds missing
+      let transIds = parsed.selectedTranslationIds;
+      if (!transIds && parsed.translationMode) {
+        if (parsed.translationMode === 'en') transIds = [20];
+        else if (parsed.translationMode === 'bn') transIds = [161];
+        else if (parsed.translationMode === 'both') transIds = [20, 161];
+      }
+
+      // Ensure merged settings have all required fields even if storage is partial or old
+      return {
+        ...defaultSettings,
+        appLanguage: browserLang, // Set default based on browser first
+        ...parsed, // Override with stored settings if they exist
+        selectedTranslationIds: transIds || defaultSettings.selectedTranslationIds,
+        location: (parsed.location && typeof parsed.location === 'object') ? parsed.location : defaultSettings.location,
+        hijriAdjustment: typeof parsed.hijriAdjustment === 'number' ? parsed.hijriAdjustment : defaultSettings.hijriAdjustment
+      };
     } catch (e) {
-        console.error("Failed to parse settings from local storage, using defaults", e);
-        const browserLang = (typeof navigator !== 'undefined' && navigator.language.startsWith('bn')) ? 'bn' : 'en';
-        return { ...defaultSettings, appLanguage: browserLang };
+      console.error("Failed to parse settings from local storage, using defaults", e);
+      const browserLang = (typeof navigator !== 'undefined' && navigator.language.startsWith('bn')) ? 'bn' : 'en';
+      return { ...defaultSettings, appLanguage: browserLang };
     }
   });
 
@@ -106,18 +108,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Fetch API resources on mount
   useEffect(() => {
     const fetchResources = async () => {
-        const transData = await getAvailableTranslations();
-        setAvailableTranslations(transData);
-        
-        const recData = await getReciters();
-        setReciters(recData);
+      const transData = await getAvailableTranslations();
+      setAvailableTranslations(transData);
+
+      const recData = await getReciters();
+      setReciters(recData);
     };
     fetchResources();
   }, []);
 
   // Header Title State
   const [headerTitle, setHeaderTitle] = useState("NoorQuran");
-  
+
   // Drawer State
   const [isSettingsDrawerOpen, setSettingsDrawerOpen] = useState(false);
 
@@ -127,21 +129,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Bookmarks State
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => {
     try {
-        const stored = localStorage.getItem('quran_bookmarks');
-        return stored ? JSON.parse(stored) : [];
+      const stored = localStorage.getItem('quran_bookmarks');
+      return stored ? JSON.parse(stored) : [];
     } catch (e) {
-        return [];
+      return [];
     }
   });
 
   // Recent Surah
   const [recentSurah, setRecentState] = useState<Surah | null>(() => {
-      try {
-        const stored = localStorage.getItem('quran_recent');
-        return stored ? JSON.parse(stored) : null;
-      } catch (e) {
-        return null;
-      }
+    try {
+      const stored = localStorage.getItem('quran_recent');
+      return stored ? JSON.parse(stored) : null;
+    } catch (e) {
+      return null;
+    }
   });
 
   // Audio State
@@ -168,9 +170,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [bookmarks]);
 
   useEffect(() => {
-      if(recentSurah) {
-          localStorage.setItem('quran_recent', JSON.stringify(recentSurah));
-      }
+    if (recentSurah) {
+      localStorage.setItem('quran_recent', JSON.stringify(recentSurah));
+    }
   }, [recentSurah]);
 
   // Actions
@@ -189,28 +191,28 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const setRecentSurah = (surah: Surah) => {
-      setRecentState(surah);
+    setRecentState(surah);
   }
 
   // Audio Actions
   const registerAudioUrls = (ayahs: Ayah[]) => {
-      setAudio(prev => {
-          const newLookup = { ...prev.audioLookup };
-          let surahId = null;
-          ayahs.forEach(ayah => {
-              // Parse surah ID from verse key if available "1:1"
-              if (!surahId && ayah.verse_key) {
-                  surahId = parseInt(ayah.verse_key.split(':')[0]);
-              }
-              // If not, we rely on current context, but usually register comes from page load
-              // Let's assume ayah.verse_key exists.
-              const key = ayah.verse_key; 
-              if (key && ayah.audio?.url) {
-                  newLookup[key] = ayah.audio.url;
-              }
-          });
-          return { ...prev, audioLookup: newLookup };
+    setAudio(prev => {
+      const newLookup = { ...prev.audioLookup };
+      let surahId = null;
+      ayahs.forEach(ayah => {
+        // Parse surah ID from verse key if available "1:1"
+        if (!surahId && ayah.verse_key) {
+          surahId = parseInt(ayah.verse_key.split(':')[0]);
+        }
+        // If not, we rely on current context, but usually register comes from page load
+        // Let's assume ayah.verse_key exists.
+        const key = ayah.verse_key;
+        if (key && ayah.audio?.url) {
+          newLookup[key] = ayah.audio.url;
+        }
       });
+      return { ...prev, audioLookup: newLookup };
+    });
   };
 
   const playAyah = (surahId: number, ayahId: number, url: string) => {
@@ -234,13 +236,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const stopAudio = () => {
-      setAudio(prev => ({
-          ...prev,
-          isPlaying: false,
-          currentSurahId: null,
-          currentAyahId: null,
-          audioUrl: null
-      }))
+    setAudio(prev => ({
+      ...prev,
+      isPlaying: false,
+      currentSurahId: null,
+      currentAyahId: null,
+      audioUrl: null
+    }))
   }
 
   const playNextAyah = () => {
@@ -248,7 +250,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const nextAyahId = audio.currentAyahId + 1;
       const key = `${audio.currentSurahId}:${nextAyahId}`;
       const url = audio.audioLookup[key];
-      
+
       if (url) {
         playAyah(audio.currentSurahId, nextAyahId, url);
       } else {
@@ -264,11 +266,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const prevAyahId = audio.currentAyahId - 1;
       const key = `${audio.currentSurahId}:${prevAyahId}`;
       const url = audio.audioLookup[key];
-      
+
       if (url) {
         playAyah(audio.currentSurahId, prevAyahId, url);
       } else {
-         stopAudio();
+        stopAudio();
       }
     }
   };

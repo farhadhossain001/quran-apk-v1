@@ -17,7 +17,7 @@ const RandomAyahWidget = () => {
       const currentHour = Math.floor(Date.now() / (1000 * 60 * 60));
       const cacheKey = 'ayahOfTheHour';
       const cached = localStorage.getItem(cacheKey);
-      
+
       let fetchedAyah = null;
 
       if (cached) {
@@ -49,7 +49,7 @@ const RandomAyahWidget = () => {
         const fetchedSurah = await getChapterInfo(surahId);
         setSurah(fetchedSurah);
       }
-      
+
       setLoading(false);
     };
 
@@ -79,29 +79,29 @@ const RandomAyahWidget = () => {
       <div className="absolute top-0 right-0 p-4 opacity-10">
         <Sparkles size={80} />
       </div>
-      
+
       <div className="relative z-10">
         <div className="flex items-center gap-2 mb-4 text-teal-700 dark:text-teal-400">
           <Sparkles size={18} />
           <h2 className="text-sm font-bold uppercase tracking-wider">{settings.appLanguage === 'bn' ? 'এই মুহূর্তের আয়াত' : 'Ayah of the Hour'}</h2>
         </div>
-        
-        <p className="text-2xl font-amiri text-right mb-4 leading-loose text-gray-800 dark:text-gray-100" dir="rtl">
-          {ayah.text_uthmani}
+
+        <p className={`text-2xl font-${settings.arabicFont} text-right mb-4 leading-loose text-gray-800 dark:text-gray-100`} dir="rtl">
+          {settings.arabicFont === 'indopak' ? (ayah.text_indopak || ayah.text_uthmani) : ayah.text_uthmani}
         </p>
-        
+
         {translation && (
           <p className="text-gray-600 dark:text-gray-300 mb-6 italic">
             "{translation.text.replace(/<[^>]*>?/gm, '')}"
           </p>
         )}
-        
+
         <div className="flex justify-between items-center">
           <span className="text-sm font-medium text-teal-700 dark:text-teal-400">
             {surahName} • {settings.appLanguage === 'bn' ? 'আয়াত' : 'Ayah'} {ayah.verse_number}
           </span>
-          
-          <Link 
+
+          <Link
             to={`/surah/${surahId}`}
             onClick={() => setShowBottomNav(false)}
             className="flex items-center gap-1 text-sm font-bold text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 transition-colors"

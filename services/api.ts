@@ -70,7 +70,7 @@ export const getVerses = async (
     const translationsParam = translationIds.length > 0 ? translationIds.join(',') : '20';
 
     // Request audio by passing `audio={reciterId}`
-    const url = `${BASE_URL}/verses/by_chapter/${chapterId}?language=en&words=false&translations=${translationsParam}&audio=${reciterId}&page=${page}&per_page=${limit}&fields=text_uthmani`;
+    const url = `${BASE_URL}/verses/by_chapter/${chapterId}?language=en&words=false&translations=${translationsParam}&audio=${reciterId}&page=${page}&per_page=${limit}&fields=text_uthmani,text_indopak`;
 
     const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch verses');
@@ -129,7 +129,7 @@ export const getAyahAudioUrl = (surahId: number, ayahId: number, reciterId = 7):
 export const getRandomAyah = async (translationIds: number[] = [20]): Promise<Ayah | null> => {
   try {
     const translationsParam = translationIds.length > 0 ? translationIds.join(',') : '20';
-    const url = `${BASE_URL}/verses/random?language=en&words=false&translations=${translationsParam}&fields=text_uthmani`;
+    const url = `${BASE_URL}/verses/random?language=en&words=false&translations=${translationsParam}&fields=text_uthmani,text_indopak`;
     const response = await fetch(url);
     if (!response.ok) throw new Error('Failed to fetch random ayah');
     const data = await response.json();

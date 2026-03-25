@@ -79,19 +79,33 @@
     }
   </style>
 
-  <script type="module" crossorigin src="/assets/index-CDlk6WBh.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-62L8Fs6U.css">
+  <script type="module" crossorigin src="/assets/index-BmipZfgi.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DoqzEvwA.css">
 </head>
 
 <body
   class="bg-background-light dark:bg-background-dark text-gray-900 dark:text-gray-100 transition-colors duration-300 overscroll-y-none bg-fixed">
-  
+
   <!-- Offline Overlay Mechanism (Pure JS/CSS so it runs without CDNs) -->
-  <div id="offline-overlay" style="display: none; position: fixed; inset: 0; background: #FAFAFA; z-index: 999999; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; text-align: center; padding: 20px;">
-    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 20px;"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path><path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
-    <h2 id="offline-title" style="margin: 0 0 10px 0; color: #111827; font-size: 24px; font-weight: 600;">No Internet Connection</h2>
-    <p id="offline-text" style="margin: 0; color: #4B5563; font-size: 16px; max-width: 300px;">Please connect to the internet to load NoorQuran.</p>
-    <button onclick="window.location.reload()" style="margin-top: 30px; padding: 12px 24px; background: #00897B; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">Try Again</button>
+  <div id="offline-overlay"
+    style="display: none; position: fixed; inset: 0; background: #FAFAFA; z-index: 999999; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif; text-align: center; padding: 20px;">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round"
+      stroke-linejoin="round" style="margin-bottom: 20px;">
+      <line x1="1" y1="1" x2="23" y2="23"></line>
+      <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"></path>
+      <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"></path>
+      <path d="M10.71 5.05A16 16 0 0 1 22.58 9"></path>
+      <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"></path>
+      <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+      <line x1="12" y1="20" x2="12.01" y2="20"></line>
+    </svg>
+    <h2 id="offline-title" style="margin: 0 0 10px 0; color: #111827; font-size: 24px; font-weight: 600;">No Internet
+      Connection</h2>
+    <p id="offline-text" style="margin: 0; color: #4B5563; font-size: 16px; max-width: 300px;">Please connect to the
+      internet to load NoorQuran.</p>
+    <button onclick="window.location.reload()"
+      style="margin-top: 30px; padding: 12px 24px; background: #00897B; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">Try
+      Again</button>
   </div>
   <script>
     const offlineOverlay = document.getElementById('offline-overlay');
@@ -103,11 +117,11 @@
         document.getElementById('offline-text').style.color = '#9CA3AF';
       }
     }
-    
+
     function hideOfflineScreen() {
       offlineOverlay.style.display = 'none';
       if (!document.getElementById('root').innerHTML.trim()) {
-         setTimeout(() => window.location.reload(), 500);
+        setTimeout(() => window.location.reload(), 500);
       }
     }
 
@@ -118,7 +132,7 @@
         hideOfflineScreen();
       }
     }
-    
+
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
     updateOnlineStatus(); // Check instantly on load

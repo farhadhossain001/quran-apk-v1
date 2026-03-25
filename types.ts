@@ -52,6 +52,7 @@ export interface Ayah {
   verse_number: number;
   verse_key: string;
   text_uthmani: string;
+  text_indopak?: string;
   translations: Translation[];
   audio?: AudioFile;
 }
@@ -68,6 +69,8 @@ export interface UserSettings {
   theme: 'light' | 'dark';
   fontSize: number; // 1 to 5 scale
   showArabic: boolean;
+  arabicFont: string; // 'amiri' | 'indopak'
+  readingMode: 'verseByVerse' | 'reading';
   showTranslation: boolean;
   showTransliteration: boolean;
   reciterId: number;
@@ -116,7 +119,7 @@ export interface HadithBook {
 
 export interface HadithChapter {
   id: string; // Section ID/Number (e.g. "1")
-  sectionNumber: string; 
+  sectionNumber: string;
   sectionName: string; // e.g. "Revelation"
   bookSlug: string;
 }

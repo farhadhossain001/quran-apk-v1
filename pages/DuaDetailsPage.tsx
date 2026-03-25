@@ -86,16 +86,15 @@ const DuaDetailsPage = () => {
                 </h3>
               </div>
               {expandedDua === dua.id ? (
-              <ChevronUp size={20} className="text-gray-400 flex-shrink-0 transition-transform duration-300" />
-            ) : (
-              <ChevronDown size={20} className="text-gray-400 flex-shrink-0 transition-transform duration-300" />
-            )}
+                <ChevronUp size={20} className="text-gray-400 flex-shrink-0 transition-transform duration-300" />
+              ) : (
+                <ChevronDown size={20} className="text-gray-400 flex-shrink-0 transition-transform duration-300" />
+              )}
             </button>
 
-            <div 
-              className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                expandedDua === dua.id ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
-              }`}
+            <div
+              className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedDua === dua.id ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
+                }`}
             >
               <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
                 {dua.arabic && (

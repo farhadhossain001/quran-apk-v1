@@ -8,7 +8,7 @@ import RandomAyahWidget from '../components/RandomAyahWidget';
 import { PrayerTimeIcon, QuranIcon, HadithIcon, AsmaUlHusnaIcon, CalendarIcon, QiblaIcon, NamazIcon, kitabIcon, BisoyvittikIcon, RadioIcon, DuaIcon } from '../components/CustomIcons';
 
 const HomePage = () => {
-  const { recentSurah, t, getSurahName, setShowBottomNav } = useAppStore();
+  const { recentSurah, t, getSurahName, setShowBottomNav, settings } = useAppStore();
 
   // When navigating from category links (not bottom nav), hide the bottom nav
   const handleCategoryClick = () => {
@@ -32,7 +32,7 @@ const HomePage = () => {
             <h2 className="text-sm opacity-90 mb-2 uppercase tracking-wide font-medium">{t('continueReading')}</h2>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
               <div>
-                <h3 className="text-3xl font-amiri font-bold mb-1">{recentSurah.name_arabic}</h3>
+                <h3 className={`text-3xl font-${settings.arabicFont} font-bold mb-1`}>{recentSurah.name_arabic}</h3>
                 <p className="text-xl font-bold">{getSurahName(recentSurah)}</p>
                 <p className="text-sm opacity-80">{recentSurah.translated_name.name}</p>
               </div>
