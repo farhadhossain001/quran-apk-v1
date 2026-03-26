@@ -200,8 +200,30 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ type, hadithOptions }) 
           {/* SURAH SPECIFIC */}
           {type === 'surah' && (
             <>
-              {/* Reciter */}
+              {/* Reading Mode */}
               <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
+                  <BookA size={16} />
+                  {t('readingMode')}
+                </div>
+                <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-xl flex">
+                  <button
+                    onClick={() => updateSettings({ readingMode: 'verse' })}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${settings.readingMode === 'verse' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                  >
+                    {t('verseByVerse')}
+                  </button>
+                  <button
+                    onClick={() => updateSettings({ readingMode: 'reading' })}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${settings.readingMode === 'reading' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+                  >
+                    {t('continuousReading')}
+                  </button>
+                </div>
+              </div>
+
+              {/* Reciter */}
+              <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-gray-800">
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
                   <Mic size={16} />
                   {t('reciter')}

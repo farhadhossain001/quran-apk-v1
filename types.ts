@@ -85,6 +85,7 @@ export interface UserSettings {
   repeatMode: 'none' | 'one' | 'all'; // 'all' means auto-play next
   hijriAdjustment: number; // For Hijri date adjustment
   arabicFont: 'uthmani' | 'indopak'; // Selected Arabic font
+  readingMode: 'verse' | 'reading'; // Surah Reading Mode
 }
 
 export const FONT_SIZES = {

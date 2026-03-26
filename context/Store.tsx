@@ -61,6 +61,7 @@ const defaultSettings: UserSettings = {
   repeatMode: 'all', // Default to auto-play
   hijriAdjustment: -1, // Default adjustment for Bangladesh (-1 day)
   arabicFont: 'uthmani',
+  readingMode: 'verse',
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);

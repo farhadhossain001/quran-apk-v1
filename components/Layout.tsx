@@ -6,7 +6,7 @@ import { getSpecificAyahAudio } from '../services/api';
 import {
   Home, Bookmark, Settings, Search, Play, Pause, X, Moon, Sun, BookOpen,
   SkipBack, SkipForward, Repeat, Repeat1, Volume2, VolumeX, Gauge, Loader2,
-  ArrowLeft, SlidersHorizontal, Mic, Check, ChevronUp, BookMarked, Menu
+  ArrowLeft, SlidersHorizontal, Mic, Check, ChevronUp, BookMarked, Menu, AlignRight
 } from 'lucide-react';
 import SideNav from './SideNav';
 
@@ -607,6 +607,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             {/* Right Side: Actions */}
             <div className="flex items-center gap-2 flex-shrink-0">
+              {/* Reading Mode Toggle */}
+              {location.pathname.startsWith('/surah/') && (
+                <button
+                  onClick={() => updateSettings({ readingMode: settings.readingMode === 'reading' ? 'verse' : 'reading' })}
+                  className={`p-2 rounded-full transition ${settings.readingMode === 'reading' ? 'bg-primary/10 text-primary' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+                  aria-label="Toggle Reading Mode"
+                  title={settings.readingMode === 'reading' ? t('verseByVerse') : t('continuousReading')}
+                >
+                  {settings.readingMode === 'reading' ? <BookOpen size={20} /> : <AlignRight size={20} />}
+                </button>
+              )}
+
               {/* Page Settings Toggle */}
               {showPageSettings && (
                 <button

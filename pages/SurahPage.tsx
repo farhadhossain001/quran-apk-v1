@@ -234,61 +234,89 @@ const SurahPage = () => {
       )}
 
       {/* Verses */}
-      <div className="space-y-6">
-        {ayahs.map((ayah) => {
-          const isPlaying = audio.currentSurahId === surah?.id && audio.currentAyahId === ayah.verse_number && audio.isPlaying;
-          const activeAyah = audio.currentSurahId === surah?.id && audio.currentAyahId === ayah.verse_number;
-
-          return (
-            <div
-              key={ayah.id}
-              id={`ayah-${ayah.verse_number}`}
-              className={`p-6 rounded-2xl bg-white dark:bg-surface-dark border transition-all duration-300 ${activeAyah ? 'border-primary dark:border-primary-dark shadow-md ring-1 ring-primary/20' : 'border-gray-100 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'}`}
-            >
-              {/* Toolbar */}
-              <div className="flex justify-between items-center mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
-                <span className="bg-gray-100 dark:bg-gray-800 text-primary dark:text-primary-dark px-3 py-1 rounded-full text-xs font-bold">
-                  {formatNumber(surah?.id || 0)}:{formatNumber(ayah.verse_number)}
+      {settings.readingMode === 'reading' ? (
+        <div 
+          className={`p-6 md:p-10 rounded-3xl bg-white dark:bg-surface-dark shadow-sm border border-gray-100 dark:border-gray-800 text-justify mb-8 text-gray-900 dark:text-gray-100 ${settings.arabicFont === 'indopak' ? 'font-indopak' : 'font-uthmani'} ${ARABIC_FONT_SIZES[settings.fontSize as keyof typeof ARABIC_FONT_SIZES]} leading-loose`}
+          dir="rtl"
+        >
+          {ayahs.map((ayah) => {
+            const ayahText = settings.arabicFont === 'indopak' ? (ayah.text_indopak || ayah.text_uthmani) : ayah.text_uthmani;
+            const toArabicNumber = (n: number) => n.toString().replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d as any]);
+            const activeAyah = audio.currentSurahId === surah?.id && audio.currentAyahId === ayah.verse_number;
+            
+            return (
+              <span 
+                key={ayah.id} 
+                id={`ayah-${ayah.verse_number}`}
+                className={`inline transition-colors duration-300 ${activeAyah ? 'text-primary dark:text-primary-dark font-bold' : ''}`}
+                onClick={() => handlePlay(ayah)}
+                title={`${surah?.name_simple} ${ayah.verse_number}`}
+              >
+                {ayahText}
+                <span className="mx-2 text-primary dark:text-primary-dark select-none">
+                  ۝{toArabicNumber(ayah.verse_number)}
                 </span>
-                <div className="flex gap-2">
-                  <button onClick={() => handlePlay(ayah)} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${isPlaying ? 'text-primary' : 'text-gray-500'}`}>
-                    {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-                  </button>
-                  <button onClick={() => handleTafsir(ayah)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition text-gray-500 hover:text-primary dark:hover:text-primary-dark" title="Tafsir">
-                    <BookOpen size={18} />
-                  </button>
-                  <button onClick={() => handleBookmark(ayah)} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${isBookmarked(ayah.verse_number) ? 'text-secondary fill-current' : 'text-gray-500'}`}>
-                    <BookmarkIcon size={18} />
-                  </button>
+              </span>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {ayahs.map((ayah) => {
+            const isPlaying = audio.currentSurahId === surah?.id && audio.currentAyahId === ayah.verse_number && audio.isPlaying;
+            const activeAyah = audio.currentSurahId === surah?.id && audio.currentAyahId === ayah.verse_number;
+
+            return (
+              <div
+                key={ayah.id}
+                id={`ayah-${ayah.verse_number}`}
+                className={`p-6 rounded-2xl bg-white dark:bg-surface-dark border transition-all duration-300 ${activeAyah ? 'border-primary dark:border-primary-dark shadow-md ring-1 ring-primary/20' : 'border-gray-100 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'}`}
+              >
+                {/* Toolbar */}
+                <div className="flex justify-between items-center mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
+                  <span className="bg-gray-100 dark:bg-gray-800 text-primary dark:text-primary-dark px-3 py-1 rounded-full text-xs font-bold">
+                    {formatNumber(surah?.id || 0)}:{formatNumber(ayah.verse_number)}
+                  </span>
+                  <div className="flex gap-2">
+                    <button onClick={() => handlePlay(ayah)} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${isPlaying ? 'text-primary' : 'text-gray-500'}`}>
+                      {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+                    </button>
+                    <button onClick={() => handleTafsir(ayah)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition text-gray-500 hover:text-primary dark:hover:text-primary-dark" title="Tafsir">
+                      <BookOpen size={18} />
+                    </button>
+                    <button onClick={() => handleBookmark(ayah)} className={`p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition ${isBookmarked(ayah.verse_number) ? 'text-secondary fill-current' : 'text-gray-500'}`}>
+                      <BookmarkIcon size={18} />
+                    </button>
+                  </div>
                 </div>
+
+                {/* Arabic */}
+                {settings.showArabic && (
+                  <p className={`text-right leading-[2.2] mb-6 text-gray-900 dark:text-gray-100 ${settings.arabicFont === 'indopak' ? 'font-indopak' : 'font-uthmani'} ${ARABIC_FONT_SIZES[settings.fontSize as keyof typeof ARABIC_FONT_SIZES]}`}>
+                    {settings.arabicFont === 'indopak' ? (ayah.text_indopak || ayah.text_uthmani) : ayah.text_uthmani}
+                  </p>
+                )}
+
+                {/* Translations */}
+                {settings.showTranslation && (
+                  <div className={`space-y-6 ${FONT_SIZES[settings.fontSize as keyof typeof FONT_SIZES]}`}>
+                    {ayah.translations.map((tr) => (
+                      <div key={tr.id} className="border-l-2 border-gray-100 dark:border-gray-700 pl-4">
+                        <div className="text-gray-600 dark:text-gray-300 leading-relaxed font-light mb-1"
+                          dangerouslySetInnerHTML={{ __html: tr.text }}
+                        />
+                        <p className="text-[10px] text-gray-400 uppercase tracking-wide">
+                          {getTranslatorName(tr.resource_id)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-
-              {/* Arabic */}
-              {settings.showArabic && (
-                <p className={`text-right leading-[2.2] mb-6 text-gray-900 dark:text-gray-100 ${settings.arabicFont === 'indopak' ? 'font-indopak' : 'font-uthmani'} ${ARABIC_FONT_SIZES[settings.fontSize as keyof typeof ARABIC_FONT_SIZES]}`}>
-                  {settings.arabicFont === 'indopak' ? (ayah.text_indopak || ayah.text_uthmani) : ayah.text_uthmani}
-                </p>
-              )}
-
-              {/* Translations */}
-              {settings.showTranslation && (
-                <div className={`space-y-6 ${FONT_SIZES[settings.fontSize as keyof typeof FONT_SIZES]}`}>
-                  {ayah.translations.map((tr) => (
-                    <div key={tr.id} className="border-l-2 border-gray-100 dark:border-gray-700 pl-4">
-                      <div className="text-gray-600 dark:text-gray-300 leading-relaxed font-light mb-1"
-                        dangerouslySetInnerHTML={{ __html: tr.text }}
-                      />
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wide">
-                        {getTranslatorName(tr.resource_id)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
       {hasMore && (
         <div className="mt-8 text-center">
