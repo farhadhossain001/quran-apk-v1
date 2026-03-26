@@ -147,6 +147,28 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ type, hadithOptions }) 
             </div>
           </div>
 
+          {/* Arabic Font Selector */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
+              <Type size={16} />
+              Arabic Font
+            </div>
+            <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-xl flex">
+              <button
+                onClick={() => updateSettings({ arabicFont: 'uthmani' })}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${settings.arabicFont === 'uthmani' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              >
+                Uthmanic
+              </button>
+              <button
+                onClick={() => updateSettings({ arabicFont: 'indopak' })}
+                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${settings.arabicFont === 'indopak' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
+              >
+                IndoPak
+              </button>
+            </div>
+          </div>
+
           {/* Arabic Toggle (Common) */}
           <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
             <div className="flex items-center gap-2 font-medium">
@@ -159,28 +181,6 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ type, hadithOptions }) 
             >
               <span className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${settings.showArabic ? 'translate-x-6' : ''}`} />
             </button>
-          </div>
-
-          {/* Arabic Font (Common) */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
-              <Type size={16} />
-              {settings.appLanguage === 'bn' ? 'আরবি ফন্ট' : 'Arabic Font'}
-            </div>
-            <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-xl flex">
-              <button
-                onClick={() => updateSettings({ arabicFont: 'amiri' })}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${settings.arabicFont === 'amiri' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-              >
-                Uthmani (Amiri)
-              </button>
-              <button
-                onClick={() => updateSettings({ arabicFont: 'indopak' })}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${settings.arabicFont === 'indopak' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-              >
-                IndoPak
-              </button>
-            </div>
           </div>
 
           {/* Translation Toggle (Common) */}
@@ -200,30 +200,8 @@ const SettingsDrawer: React.FC<SettingsDrawerProps> = ({ type, hadithOptions }) 
           {/* SURAH SPECIFIC */}
           {type === 'surah' && (
             <>
-              {/* Quran Reading Mode */}
-              <div className="space-y-3 pb-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
-                  <BookA size={16} />
-                  {settings.appLanguage === 'bn' ? 'পড়ার ধরন' : 'Reading Mode'}
-                </div>
-                <div className="bg-gray-100 dark:bg-gray-800 p-1 rounded-xl flex">
-                  <button
-                    onClick={() => updateSettings({ readingMode: 'verseByVerse' })}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${settings.readingMode === 'verseByVerse' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                  >
-                    Verse by Verse
-                  </button>
-                  <button
-                    onClick={() => updateSettings({ readingMode: 'reading' })}
-                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition ${settings.readingMode === 'reading' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                  >
-                    Reading
-                  </button>
-                </div>
-              </div>
-
               {/* Reciter */}
-              <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-500">
                   <Mic size={16} />
                   {t('reciter')}

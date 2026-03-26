@@ -117,7 +117,7 @@ const AsmaUlHusnaPage = () => {
                             )}
 
                             <div className="mb-4 mt-4">
-                                <h2 className={`font-${settings.arabicFont} text-4xl text-primary dark:text-primary-dark mb-2 group-hover:scale-110 transition-transform duration-300`}>
+                                <h2 className={`text-4xl text-primary dark:text-primary-dark mb-2 group-hover:scale-110 transition-transform duration-300 ${settings.arabicFont === 'indopak' ? 'font-indopak' : 'font-uthmani'}`}>
                                     {item.arabic}
                                 </h2>
                             </div>

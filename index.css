@@ -3,11 +3,24 @@
 @tailwind utilities;
 
 @font-face {
+  font-family: 'UthmanicHafs';
+  src: url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.woff2') format('woff2'),
+       url('https://verses.quran.foundation/fonts/quran/hafs/uthmanic_hafs/UthmanicHafs1Ver18.ttf') format('truetype');
+  font-display: swap;
+}
+
+@font-face {
   font-family: 'IndoPak';
   src: url('https://verses.quran.foundation/fonts/quran/hafs/nastaleeq/indopak/indopak-nastaleeq-waqf-lazim-v4.2.1.woff2') format('woff2'),
-       url('https://verses.quran.foundation/fonts/quran/hafs/nastaleeq/indopak/indopak-nastaleeq-waqf-lazim-v4.2.1.woff') format('woff'),
-       url('https://verses.quran.foundation/fonts/quran/hafs/nastaleeq/indopak/indopak-nastaleeq-waqf-lazim-v4.2.1.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
+       url('https://verses.quran.foundation/fonts/quran/hafs/nastaleeq/indopak/indopak-nastaleeq-waqf-lazim-v4.2.1.woff') format('woff');
   font-display: swap;
+}
+
+.font-uthmani {
+  font-family: 'UthmanicHafs', 'Traditional Arabic', serif;
+}
+
+.font-indopak {
+  font-family: 'IndoPak', 'Noto Nastaliq Urdu', serif;
+  line-height: 2.5;
 }

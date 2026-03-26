@@ -149,7 +149,7 @@ const HadithDetailsPage = () => {
                     </div>
 
                     {settings.showArabic && hadith.textArabic && (
-                        <div className={`font-${settings.arabicFont} text-right leading-[2.2] mb-6 text-gray-900 dark:text-gray-100 ${ARABIC_FONT_SIZES[settings.fontSize as keyof typeof ARABIC_FONT_SIZES]}`}>
+                        <div className={`text-right leading-[2.2] mb-6 text-gray-900 dark:text-gray-100 ${settings.arabicFont === 'indopak' ? 'font-indopak' : 'font-uthmani'} ${ARABIC_FONT_SIZES[settings.fontSize as keyof typeof ARABIC_FONT_SIZES]}`}>
                             {cleanText(hadith.textArabic)}
                         </div>
                     )}

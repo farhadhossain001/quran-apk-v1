@@ -302,46 +302,6 @@ const SettingsPage = () => {
                 </div>
             </div>
 
-            <div>
-                <label className="block text-sm font-medium mb-3 text-gray-600 dark:text-gray-400">
-                    {settings.appLanguage === 'bn' ? 'আরবি ফন্ট' : 'Arabic Font'}
-                </label>
-                <div className="bg-gray-50 dark:bg-gray-800 p-1 rounded-xl flex">
-                    <button
-                        onClick={() => updateSettings({ arabicFont: 'amiri' })}
-                        className={`flex-1 py-3 font-bold rounded-lg transition text-sm ${settings.arabicFont === 'amiri' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                    >
-                        Uthmani (Amiri)
-                    </button>
-                    <button
-                        onClick={() => updateSettings({ arabicFont: 'indopak' })}
-                        className={`flex-1 py-3 font-bold rounded-lg transition text-sm ${settings.arabicFont === 'indopak' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                    >
-                        IndoPak
-                    </button>
-                </div>
-            </div>
-
-            <div>
-                <label className="block text-sm font-medium mb-3 text-gray-600 dark:text-gray-400">
-                    {settings.appLanguage === 'bn' ? 'পড়ার ধরন (কুরআন)' : 'Reading Mode (Quran)'}
-                </label>
-                <div className="bg-gray-50 dark:bg-gray-800 p-1 rounded-xl flex">
-                    <button
-                        onClick={() => updateSettings({ readingMode: 'verseByVerse' })}
-                        className={`flex-1 py-3 font-bold rounded-lg transition text-sm ${settings.readingMode === 'verseByVerse' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                    >
-                        Verse by Verse
-                    </button>
-                    <button
-                        onClick={() => updateSettings({ readingMode: 'reading' })}
-                        className={`flex-1 py-3 font-bold rounded-lg transition text-sm ${settings.readingMode === 'reading' ? 'bg-white dark:bg-surface-dark text-primary shadow-sm' : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}
-                    >
-                        Reading
-                    </button>
-                </div>
-            </div>
-
             <div className="flex items-center justify-between">
                 <span>{t('showArabic')}</span>
                 <button 

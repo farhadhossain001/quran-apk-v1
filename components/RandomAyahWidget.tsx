@@ -86,7 +86,7 @@ const RandomAyahWidget = () => {
           <h2 className="text-sm font-bold uppercase tracking-wider">{settings.appLanguage === 'bn' ? 'এই মুহূর্তের আয়াত' : 'Ayah of the Hour'}</h2>
         </div>
 
-        <p className={`text-2xl font-${settings.arabicFont} text-right mb-4 leading-loose text-gray-800 dark:text-gray-100`} dir="rtl">
+        <p className={`text-2xl text-right mb-4 leading-loose text-gray-800 dark:text-gray-100 ${settings.arabicFont === 'indopak' ? 'font-indopak' : 'font-uthmani'}`} dir="rtl">
           {settings.arabicFont === 'indopak' ? (ayah.text_indopak || ayah.text_uthmani) : ayah.text_uthmani}
         </p>
 

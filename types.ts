@@ -69,8 +69,6 @@ export interface UserSettings {
   theme: 'light' | 'dark';
   fontSize: number; // 1 to 5 scale
   showArabic: boolean;
-  arabicFont: string; // 'amiri' | 'indopak'
-  readingMode: 'verseByVerse' | 'reading';
   showTranslation: boolean;
   showTransliteration: boolean;
   reciterId: number;
@@ -86,6 +84,7 @@ export interface UserSettings {
   playbackRate: number; // 0.5, 0.75, 1, 1.25, 1.5, 2
   repeatMode: 'none' | 'one' | 'all'; // 'all' means auto-play next
   hijriAdjustment: number; // For Hijri date adjustment
+  arabicFont: 'uthmani' | 'indopak'; // Selected Arabic font
 }
 
 export const FONT_SIZES = {

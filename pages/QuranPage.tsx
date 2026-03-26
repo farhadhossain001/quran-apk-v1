@@ -9,7 +9,7 @@ const QuranPage = () => {
   const [surahs, setSurahs] = useState<Surah[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const { t, formatNumber, getSurahName, setHeaderTitle, settings } = useAppStore();
+  const { t, formatNumber, getSurahName, setHeaderTitle } = useAppStore();
 
   useEffect(() => {
     setHeaderTitle(t('quran'));
@@ -72,7 +72,7 @@ const QuranPage = () => {
                 </div>
               </div>
               <div className="text-right">
-                <p className={`font-${settings.arabicFont} text-xl text-gray-800 dark:text-gray-200`}>{surah.name_arabic}</p>
+                <p className="font-amiri text-xl text-gray-800 dark:text-gray-200">{surah.name_arabic}</p>
                 <p className="text-[10px] text-gray-400">{formatNumber(surah.verses_count)} {t('verses')}</p>
               </div>
             </Link>

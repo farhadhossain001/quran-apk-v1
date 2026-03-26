@@ -46,8 +46,6 @@ const defaultSettings: UserSettings = {
   theme: 'light',
   fontSize: 3,
   showArabic: true,
-  arabicFont: 'indopak',
-  readingMode: 'verseByVerse',
   showTranslation: true,
   showTransliteration: false,
   reciterId: 7, // Default Mishary Rashid Alafasy (ID 7 in Quran.com API)
@@ -62,6 +60,7 @@ const defaultSettings: UserSettings = {
   playbackRate: 1.0,
   repeatMode: 'all', // Default to auto-play
   hijriAdjustment: -1, // Default adjustment for Bangladesh (-1 day)
+  arabicFont: 'uthmani',
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);

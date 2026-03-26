@@ -16,7 +16,6 @@ export default {
       fontFamily: {
         sans: ['Inter', 'Noto Sans Bengali', 'sans-serif'],
         amiri: ['Amiri', 'serif'],
-        indopak: ['IndoPak', 'serif'],
       },
       keyframes: {
         'slide-up': { '0%': { transform: 'translateY(100%)' }, '100%': { transform: 'translateY(0)' } },
